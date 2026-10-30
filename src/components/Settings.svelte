@@ -83,6 +83,10 @@
     </p>
     <p class="small muted"><a href="https://github.com/andrejoseph252/OnTrack" target="_blank" rel="noreferrer">Source code &amp; contact</a> · MIT licence</p>
   </section>
+
+  <p class="version small muted">
+    OnTrack {__APP_VERSION__} · build {__APP_BUILD__} · {new Date(__APP_BUILT_AT__).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+  </p>
 </div>
 
 <style>
@@ -95,6 +99,7 @@
   label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
   input { border: 0; background: var(--surface-2); border-radius: 10px; padding: 11px 12px; font-size: 16px; outline: none; font-family: ui-monospace, monospace; }
   .row { display: flex; gap: 8px; }
+  .version { text-align: center; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; }
   .seg.two { grid-template-columns: 1fr 1fr; }
   .seg button { border: 0; background: none; padding: 9px; border-radius: 9px; font-weight: 600; color: var(--muted); }

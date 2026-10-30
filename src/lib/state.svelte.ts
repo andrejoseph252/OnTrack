@@ -361,6 +361,23 @@ async function refreshCustom(sel: Annotated) {
   }
 }
 
+/** Start over: empty both ends, results and time choice (filters and saved places stay). */
+export function resetSearch() {
+  ctrl?.abort()
+  generation++
+  app.from = null
+  app.to = null
+  app.results = []
+  app.hidden = []
+  app.error = ''
+  app.loading = false
+  app.nextCursor = undefined
+  app.lastQuery = null
+  app.timeMode = 'now'
+  app.time = ''
+  app.preview = null
+}
+
 /** "I'm here now": plan from the current position, right now, to the same destination. */
 export async function replanFromHere() {
   app.from = null

@@ -4,7 +4,7 @@
   // Bundle the map worker as its own file; MapLibre cannot locate it after Vite's dependency pre-bundling.
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
   import { onDestroy, onMount } from 'svelte'
-  import { app, go, openTrip } from '../lib/state.svelte'
+  import { app, go, openTrip, search } from '../lib/state.svelte'
   import { theme } from '../lib/theme.svelte'
   import { decodePolyline, headingAlong, type LngLat } from '../lib/geo'
   import { isTransit } from '../lib/realtime'
@@ -226,6 +226,32 @@
     })
   })
 
+  // Saved places as small emoji pins (quiet, like Maps' saved-place markers). Tap = route there.
+  let placeMarkers: maplibregl.Marker[] = []
+  $effect(() => {
+    const places = app.places.map(p => ({ id: p.id, name: p.name, icon: p.icon, lat: p.lat, lon: p.lon }))
+    const show = app.view !== 'line' && app.view !== 'stop'
+    if (!ready) return
+    placeMarkers.forEach(m => m.remove())
+    placeMarkers = show ? places.map(p => {
+      const el = document.createElement('button')
+      el.className = 'place-pin'
+      el.type = 'button'
+      el.title = p.name
+      el.setAttribute('aria-label', `Route to ${p.name}`)
+      el.textContent = p.icon
+      el.addEventListener('click', e => {
+        e.stopPropagation()
+        const place = app.places.find(x => x.id === p.id)
+        if (!place) return
+        app.to = place
+        go('search')
+        search()
+      })
+      return new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map!)
+    }) : []
+  })
+
   onDestroy(() => map?.remove())
 
   $effect(() => {
@@ -264,6 +290,14 @@
     position: absolute; left: 18px; top: -6px; white-space: nowrap; font: 750 12px/20px var(--font);
     padding: 0 7px; border-radius: 6px; box-shadow: 0 1px 5px rgb(0 0 0 / 30%);
   }
+  :global(.place-pin) {
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; padding: 0;
+    font-size: 15px; line-height: 1; cursor: pointer;
+    background: var(--surface); border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px rgb(127 127 127 / 22%), 0 1px 2px rgb(0 0 0 / 18%), 0 3px 10px rgb(0 0 0 / 22%);
+    transition: transform .15s;
+  }
+  :global(.place-pin:active) { transform: scale(.92); }
   :global(.mk.quay) { display: flex; align-items: center; gap: 6px; }
   :global(.mk.quay .q-dot) { width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 35%); flex: none; }
   :global(.mk.quay .q-lbl) {

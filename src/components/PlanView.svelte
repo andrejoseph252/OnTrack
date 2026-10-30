@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, go, loadLater, openTrip, persistFilters, search, type Filters, type TimeMode } from '../lib/state.svelte'
+  import { app, go, loadLater, openTrip, persistFilters, resetSearch, search, type Filters, type TimeMode } from '../lib/state.svelte'
   import { toLocalInput, hm } from '../lib/format'
   import PlaceInput from './PlaceInput.svelte'
   import ResultCard from './ResultCard.svelte'
@@ -45,20 +45,31 @@
     }
   }
 
+  function clearAll() {
+    resetSearch()
+    editing = false
+    showHidden = false
+  }
+
   const activeFilters = $derived(FILTERS.filter(f => app.filters[f.key]).length)
 </script>
 
 <TopNav />
 
 {#if compact}
-  <button class="summary card" onclick={() => { editing = true; app.sheet = 'full' }}>
-    <span class="rail mini" aria-hidden="true"><span class="o"></span><span class="dash"></span><span class="d"></span></span>
-    <span class="names">
-      <b>{app.from?.name ?? 'Current location'}</b>
-      <b>{app.to?.name}</b>
-    </span>
-    <span class="meta small">{app.timeMode === 'now' ? 'Now' : `${app.timeMode === 'depart' ? 'Dep' : 'Arr'} ${hm(new Date(app.time))}`}{activeFilters ? ` · ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}<span class="edit">Edit</span></span>
-  </button>
+  <div class="summary card">
+    <button class="sumedit" onclick={() => { editing = true; app.sheet = 'full' }}>
+      <span class="rail mini" aria-hidden="true"><span class="o"></span><span class="dash"></span><span class="d"></span></span>
+      <span class="names">
+        <b>{app.from?.name ?? 'Current location'}</b>
+        <b>{app.to?.name}</b>
+      </span>
+      <span class="meta small">{app.timeMode === 'now' ? 'Now' : `${app.timeMode === 'depart' ? 'Dep' : 'Arr'} ${hm(new Date(app.time))}`}{activeFilters ? ` · ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}<span class="edit">Edit</span></span>
+    </button>
+    <button class="clear" onclick={clearAll} aria-label="Clear search">
+      <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></svg>
+    </button>
+  </div>
 {:else}
 <section class="planner card">
   <div class="rail" aria-hidden="true"><span class="o"></span><span class="dash"></span><span class="d"></span></div>
@@ -90,6 +101,9 @@
   </div>
   {#if app.timeMode !== 'now'}
     <input class="dt" type="datetime-local" bind:value={app.time} onchange={() => app.to && search()} />
+  {/if}
+  {#if app.to || app.from || app.timeMode !== 'now'}
+    <button class="link reset" onclick={clearAll}>Clear</button>
   {/if}
 </div>
 
@@ -143,7 +157,11 @@
   .rail .o { width: 11px; height: 11px; border-radius: 50%; border: 2.5px solid var(--text-2); }
   .rail .dash { flex: 1; width: 0; border-left: 2px dotted var(--surface-3); margin: 4px 0; }
   .rail .d { width: 12px; height: 12px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--accent); }
-  .summary { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; text-align: left; padding: 10px 12px 10px 6px; }
+  .summary { display: flex; align-items: stretch; }
+  .sumedit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; text-align: left; padding: 10px 6px 10px 6px; }
+  .clear { flex: none; width: 44px; border: 0; background: none; border-left: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); }
+  .clear svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+  .reset { margin-left: auto; font-size: 14px; }
   .rail.mini { padding: 6px 0; }
   .rail.mini .o { width: 9px; height: 9px; border-width: 2px; }
   .rail.mini .d { width: 10px; height: 10px; }
