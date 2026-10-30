@@ -133,7 +133,7 @@
     </section>
 
     <footer class="small muted">
-      Routing &amp; live data: <a href="https://transitous.org" target="_blank" rel="noreferrer">Transitous</a> (DELFI, OpenStreetMap). Stop and platform names: Datenquelle VRS, ohne Gewähr. Train data: DB Timetables API (when keys are set in ⚙). Map © OpenFreeMap, OpenStreetMap.
+      Routing &amp; live data: <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous and its data sources</a> (DELFI, © OpenStreetMap contributors). Stop and platform names: Datenquelle VRS, ohne Gewähr. Train data: DB Timetables API (when keys are set in ⚙). Map © OpenFreeMap, OpenStreetMap.
     </footer>
   </main>
 {/if}

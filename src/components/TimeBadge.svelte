@@ -5,14 +5,15 @@
 
   let { t, db = null, big = false }: { t: CheckedTime; db?: DbCheck | null; big?: boolean } = $props()
 
-  // DB data, when matched, is authoritative.
-  const shown = $derived(db?.when ? db.when : t.time)
-  const delay = $derived(db?.delayMin ?? (t.status === 'live' ? t.delayMin : null))
+  // DB data, when matched, is already folded into t by checkLeg (t.source === 'db').
+  const fromDb = $derived(t.source === 'db' || !!db?.when)
+  const shown = $derived(t.source !== 'db' && db?.when ? db.when : t.time)
+  const delay = $derived(t.source !== 'db' && db?.when ? db.delayMin : t.status === 'live' ? t.delayMin : null)
   const cancelled = $derived(t.status === 'cancelled' || !!db?.cancelled)
   const changed = $derived(Math.abs(shown.getTime() - t.planned.getTime()) >= 60000)
   const title = $derived(
     cancelled ? 'Cancelled'
-    : db ? 'Confirmed with DB live data'
+    : fromDb ? 'Confirmed with DB live data'
     : t.status === 'live' ? 'Live data'
     : t.status === 'unverified' ? t.reason
     : 'Timetable only, no live data',
@@ -24,10 +25,10 @@
     <s class="muted">{hm(t.planned)}</s> <span class="bad">Cancelled</span>
   {:else}
     {#if changed}<s class="muted planned">{hm(t.planned)}</s>{/if}
-    <span class:late={delay !== null && delay >= 3} class:ontime={delay !== null && delay < 3} class:approx={!db && t.status === 'unverified'}>
-      {#if !db && t.status === 'unverified'}~{/if}{hm(shown)}
+    <span class:late={delay !== null && delay >= 3} class:ontime={delay !== null && delay < 3} class:approx={!fromDb && t.status === 'unverified'}>
+      {#if !fromDb && t.status === 'unverified'}~{/if}{hm(shown)}
     </span>
-    {#if db}<span class="src db" aria-label="DB confirmed">DB</span>
+    {#if fromDb}<span class="src db" aria-label="DB confirmed">DB</span>
     {:else if t.status === 'live'}<span class="src live" aria-label="live"></span>
     {:else if t.status === 'unverified'}<span class="src unv" aria-label="unverified">?</span>{/if}
   {/if}

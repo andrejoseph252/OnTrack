@@ -65,7 +65,8 @@ export async function testDbCreds(): Promise<string> {
 
 // --- XML (tiny, regex-based so it runs in tests without a DOM) ---
 
-const attrs = (s: string) => Object.fromEntries([...s.matchAll(/([\w-]+)="([^"]*)"/g)].map(m => [m[1], m[2]]))
+// DB mixes quote styles (station='Bonn Hbf', pt="2610301444").
+const attrs = (s: string) => Object.fromEntries([...s.matchAll(/([\w-]+)=(?:"([^"]*)"|'([^']*)')/g)].map(m => [m[1], m[2] ?? m[3]]))
 
 export function parseStations(xml: string) {
   return [...xml.matchAll(/<station\b([^>]*)\/?>/g)].map(m => attrs(m[1]) as { name: string; eva: string })

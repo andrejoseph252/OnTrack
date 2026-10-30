@@ -205,3 +205,32 @@ describe('DB Timetables parsing', () => {
     expect(nameVariants('Bonn Beuel Bf')).toContain('Bonn-Beuel')
   })
 })
+
+import { authoritative, checkLeg } from '../src/lib/realtime'
+
+describe('DB data overrides the free feed', () => {
+  // Real case, 30 Oct 2026: feed had RE5 #28520 at Bonn Hbf +61 min; DB said on time.
+  const re5 = {
+    mode: 'REGIONAL_RAIL', tripId: 'test-re5', realTime: true, scheduled: true, duration: 0,
+    startTime: t('15:05'), endTime: t('15:28'), scheduledStartTime: t('14:04'), scheduledEndTime: t('14:27'),
+    legGeometry: { points: '', precision: 6, length: 0 },
+    from: { name: 'Bonn Hbf', lat: 0, lon: 0, departure: t('15:05'), scheduledDeparture: t('14:04') },
+    to: { name: 'Köln Hbf', lat: 0, lon: 0, arrival: t('15:28'), scheduledArrival: t('14:27') },
+  } as never
+
+  it('uses DB times for departure and arrival', () => {
+    authoritative.set('test-re5', { dp: { when: new Date(t('14:04')), cancelled: false }, ar: { when: new Date(t('14:31')), cancelled: false } })
+    const c = checkLeg(re5)
+    expect(c.dep).toMatchObject({ status: 'live', delayMin: 0, source: 'db' })
+    expect(c.arr).toMatchObject({ status: 'live', delayMin: 4, source: 'db' })
+  })
+  it('carries the DB departure delay to the arrival when DB has no arrival', () => {
+    authoritative.set('test-re5', { dp: { when: new Date(t('14:10')), cancelled: false }, ar: null })
+    expect(checkLeg(re5).arr.time.toISOString()).toBe(new Date(t('14:33')).toISOString())
+  })
+  it('DB cancellation wins', () => {
+    authoritative.set('test-re5', { dp: { when: null, cancelled: true }, ar: null })
+    expect(checkLeg(re5).dep.status).toBe('cancelled')
+    authoritative.delete('test-re5')
+  })
+})

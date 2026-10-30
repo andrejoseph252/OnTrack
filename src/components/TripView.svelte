@@ -29,10 +29,12 @@
     refreshing = false
   }
 
-  // Keep live data current while the trip is open; refresh at once when returning to the app.
-  const tick = setInterval(() => { now = new Date(); if (document.visibilityState === 'visible') refresh() }, 30000)
+  // Keep live data current while the trip is open and not yet over; refresh at once when
+  // returning to the app. 60 s keeps us well inside Transitous' fair-use guidance.
+  const active = () => document.visibilityState === 'visible' && Date.now() < new Date(it.endTime).getTime() + 5 * 60000
+  const tick = setInterval(() => { now = new Date(); if (active()) refresh() }, 60000)
   const clock = setInterval(() => (now = new Date()), 10000)
-  const onVis = () => { if (document.visibilityState === 'visible') refresh() }
+  const onVis = () => { if (active()) refresh() }
   document.addEventListener('visibilitychange', onVis)
   onDestroy(() => { clearInterval(tick); clearInterval(clock); document.removeEventListener('visibilitychange', onVis) })
 
@@ -72,7 +74,7 @@
     <LegStrip {it} />
 
     <div class="status small muted">
-      <span>{refreshing ? 'Updating…' : app.updatedAt ? `Updated ${hm(app.updatedAt)}, refreshes every 30 s` : ''}</span>
+      <span>{refreshing ? 'Updating…' : app.updatedAt ? `Updated ${hm(app.updatedAt)}, refreshes every minute` : ''}</span>
       <button class="link" onclick={refresh}>Refresh</button>
     </div>
 

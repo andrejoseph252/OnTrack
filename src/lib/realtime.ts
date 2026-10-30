@@ -17,6 +17,22 @@ export interface CheckedTime {
   delayMin: number
   status: TimeStatus
   reason?: string
+  /** Set when the value comes from DB's own data rather than the free feed. */
+  source?: 'db'
+}
+
+/** An authoritative time for one end of a leg (DB Timetables), keyed by tripId. */
+export interface Authoritative {
+  when: Date | null
+  cancelled: boolean
+}
+export const authoritative = new Map<string, { dp?: Authoritative | null; ar?: Authoritative | null }>()
+
+function applyAuthority(c: CheckedTime, a: Authoritative | null | undefined): CheckedTime {
+  if (!a) return c
+  if (a.cancelled) return { ...c, status: 'cancelled', reason: undefined, source: 'db' }
+  if (!a.when) return c
+  return { time: a.when, planned: c.planned, delayMin: Math.round((a.when.getTime() - c.planned.getTime()) / 60000), status: 'live', source: 'db' }
 }
 
 const LOCAL_MODES: Mode[] = ['BUS', 'TRAM', 'SUBWAY', 'METRO', 'FERRY', 'FUNICULAR', 'AERIAL_LIFT', 'CABLE_CAR', 'ODM']
@@ -70,6 +86,23 @@ export interface CheckedLeg {
 export const GHOST_DELAY_LOCAL = 90
 
 export function checkLeg(leg: Leg): CheckedLeg {
+  // DB's own data, when matched, replaces the free feed for this leg entirely.
+  const auth = leg.tripId ? authoritative.get(leg.tripId) : undefined
+  if (auth && (auth.dp?.when || auth.dp?.cancelled)) {
+    const base = checkLegFromFeed(leg)
+    const dep = applyAuthority(base.dep, auth.dp)
+    let arr = applyAuthority(base.arr, auth.ar)
+    if (arr.source !== 'db' && dep.source === 'db') {
+      // No DB arrival: carry DB's departure delay over the timetabled ride.
+      const ride = base.arr.planned.getTime() - base.dep.planned.getTime()
+      arr = { ...arr, time: new Date(dep.time.getTime() + ride), delayMin: dep.delayMin, status: dep.status === 'cancelled' ? 'cancelled' : 'unverified', reason: 'Arrival estimated from DB departure delay.' }
+    }
+    return { dep, arr }
+  }
+  return checkLegFromFeed(leg)
+}
+
+function checkLegFromFeed(leg: Leg): CheckedLeg {
   const cancelled = !!(leg.cancelled || leg.from.cancelled || leg.to.cancelled)
   const dep = checkTime(leg.from.departure ?? leg.startTime, leg.from.scheduledDeparture ?? leg.scheduledStartTime, leg.realTime, leg.mode, cancelled)
   const arr = checkTime(leg.to.arrival ?? leg.endTime, leg.to.scheduledArrival ?? leg.scheduledEndTime, leg.realTime, leg.mode, cancelled)

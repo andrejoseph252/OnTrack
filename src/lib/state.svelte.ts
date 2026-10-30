@@ -1,9 +1,10 @@
 import { plan, type PlanOptions, type PlanPoint } from './api/transitous'
 import type { Itinerary, Mode } from './api/types'
-import { checkLeg, isTransit, itineraryConfidence, type Confidence } from './realtime'
+import { authoritative, checkLeg, isTransit, itineraryConfidence, type Confidence } from './realtime'
 import { analyseTransfers, worstRisk, type RiskLevel, type Transfer } from './transfer'
 import { load, save } from './storage'
-import { checkRail, type DbCheck } from './api/db'
+import { checkRail, dbCreds, type DbCheck } from './api/db'
+import { isRail } from './lines'
 
 export interface Loc {
   name: string
@@ -130,6 +131,8 @@ function sortResults(list: Annotated[]) {
 }
 
 let ctrl: AbortController | null = null
+/** Bumped on every search, so slow DB checks never overwrite newer results. */
+let generation = 0
 
 export async function search() {
   if (!app.to) return
@@ -139,6 +142,7 @@ export async function search() {
   app.error = ''
   app.results = []
   app.hidden = []
+  const gen = ++generation
   try {
     const from = app.from ?? (await currentPosition())
     const time = app.timeMode === 'now' || !app.time ? undefined : new Date(app.time)
@@ -156,6 +160,8 @@ export async function search() {
     app.hidden = annotated.filter(a => a.confidence.broken.length)
     const extra = app.hidden.length && sched ? timetableFallback(r.itineraries, app.hidden, sched.itineraries) : []
     app.results = sortResults([...ok, ...extra])
+    // Then check every train in the list with DB and re-rank on DB's times.
+    crossCheckList(gen)
     app.nextCursor = r.nextPageCursor
     app.updatedAt = new Date()
     if (!all.length) app.error = 'No connections found. Try a different time or turn off filters.'
@@ -188,7 +194,7 @@ export function openTrip(a: Annotated) {
   app.selectedStale = false
   app.backups = {}
   app.view = 'trip'
-  crossCheckWithDb(a.it)
+  crossCheckWithDb(a.it).then(() => { if (app.selected === a) app.selected = annotate(a.it, a.fallback) })
   for (const t of a.transfers) if (t.level === 'risky' || t.level === 'missed') findBackup(t)
 }
 
@@ -210,19 +216,32 @@ export async function refreshSelected() {
       app.selectedStale = true
     }
     app.updatedAt = new Date()
-    crossCheckWithDb(app.selected.it)
+    await crossCheckWithDb(app.selected.it)
+    if (same && app.selected?.it === same) app.selected = annotate(same, sel.fallback)
   } catch {
     /* keep last known data; the "updated" time shows its age */
   }
 }
 
 async function crossCheckWithDb(it: Itinerary) {
-  await Promise.all(it.legs.filter(isTransit).map(async leg => {
+  await Promise.all(it.legs.filter(l => isTransit(l) && isRail(l.mode)).map(async leg => {
     if (!leg.tripId) return
     const [dep, arr] = await Promise.all([checkRail(leg, 'dp'), checkRail(leg, 'ar')])
     app.db[leg.tripId] = dep
     app.dbArr[leg.tripId] = arr
+    authoritative.set(leg.tripId, { dp: dep, ar: arr })
   }))
+}
+
+/** DB-check all trains in the current results, then recompute risk, flags and order. */
+async function crossCheckList(gen: number) {
+  if (!dbCreds()) return
+  const all = [...app.results, ...app.hidden]
+  await Promise.all(all.map(a => crossCheckWithDb(a.it)))
+  if (gen !== generation) return
+  const re = all.map(a => annotate(a.it, a.fallback))
+  app.hidden = re.filter(a => a.confidence.broken.length)
+  app.results = sortResults(re.filter(a => !a.confidence.broken.length))
 }
 
 /** Backup if a transfer fails: the next connections from the transfer stop after the planned departure. */
