@@ -250,9 +250,20 @@
 
       // Vehicles: an SDF disc with a nose (pointing north), tinted per line and rotated to the heading.
       m.addImage('veh', vehicleImage(), { sdf: true, pixelRatio: 2 })
+      loadVehicleSprites(m)
       m.addSource('vehicles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      m.addSource('tram-parts', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      // Trams: three articulated sections (rear, mid, front), each placed on the track and rotated.
+      m.addLayer({ id: 'tram-parts', type: 'symbol', source: 'tram-parts',
+        layout: { 'icon-image': ['get', 'img'], 'icon-rotate': ['get', 'bearing'], 'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true, 'icon-ignore-placement': true, 'symbol-sort-key': ['get', 'order'] },
+        paint: { 'icon-opacity': ['case', ['get', 'live'], 1, 0.55] } })
+      m.addLayer({ id: 'tram-labels', type: 'symbol', source: 'tram-parts', minzoom: 12.5, filter: ['==', ['get', 'order'], 1],
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': ['case', ['get', 'mine'], 12, 10.5],
+          'text-allow-overlap': true, 'text-ignore-placement': true, 'text-offset': [1.6, 0], 'text-anchor': 'left' },
+        paint: { 'text-color': '#ffffff', 'text-halo-color': ['get', 'color'], 'text-halo-width': 2.4, 'text-opacity': ['case', ['get', 'live'], 1, 0.7] } })
       m.addLayer({ id: 'vehicles', type: 'symbol', source: 'vehicles',
-        layout: { 'icon-image': 'veh', 'icon-rotate': ['get', 'bearing'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        layout: { 'icon-image': ['get', 'icon'], 'icon-rotate': ['get', 'bearing'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
           'icon-size': ['case', ['get', 'mine'], 1.3, 1], 'symbol-sort-key': ['case', ['get', 'mine'], 1, 0] },
         paint: { 'icon-color': ['get', 'color'], 'icon-halo-color': '#ffffff', 'icon-halo-width': ['case', ['get', 'mine'], 2.5, 1.2],
           'icon-opacity': ['case', ['get', 'live'], 1, 0.5] } })
@@ -327,6 +338,29 @@
     return g.getImageData(0, 0, size, size)
   }
 
+  /** Bonn tram sections and a bus silhouette (tinted per line), 2× PNGs from public/vehicles. */
+  async function loadVehicleSprites(m: maplibregl.Map) {
+    const base = './vehicles/'
+    const imgs: [string, string, boolean][] = [
+      ['tram-front', 'tram-front.png', false], ['tram-mid', 'tram-mid.png', false], ['tram-rear', 'tram-rear.png', false],
+      ['tram-front-lg', 'tram-front-lg.png', false], ['tram-mid-lg', 'tram-mid-lg.png', false], ['tram-rear-lg', 'tram-rear-lg.png', false],
+      ['bus', 'bus-mask.png', true],
+    ]
+    await Promise.all(imgs.map(async ([name, file, sdf]) => {
+      try {
+        const { data } = await m.loadImage(base + file)
+        if (!m.hasImage(name)) m.addImage(name, data, { pixelRatio: 2, sdf })
+      } catch { /* missing sprite: trams/buses fall back to the disc */ }
+    }))
+    spritesReady = true
+  }
+  let spritesReady = false
+
+  /** Metres per CSS pixel at the map centre (512 px tiles). */
+  const metresPerPx = (m: maplibregl.Map) => (40075016.686 * Math.cos((m.getCenter().lat * Math.PI) / 180)) / (512 * 2 ** m.getZoom())
+  /** Section centre spacing at display size: 18 px (standard) / 23.1 px (your tram), per the sprite design. */
+  const SECTION_PX = 18, SECTION_PX_LG = 23.14
+
   let prepared: ReturnType<typeof prepare> = new Map()
   let vehCtrl: AbortController | null = null
   let lastFetch = 0
@@ -360,22 +394,34 @@
     const src = map.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
     if (!src) return
     const f = vehicleFilter
-    const vs: Vehicle[] = f.on ? positions(prepared, Date.now()) : []
+    const mpp = metresPerPx(map)
+    const vs: Vehicle[] = f.on ? positions(prepared, Date.now(), spritesReady ? SECTION_PX * mpp : 0) : []
     const lineType = app.view === 'line' && app.line ? app.line.key.split('|')[1] : null
     const typeOf = (m: string) => (m === 'BUS' || m === 'COACH' ? 'bus' : m === 'TRAM' || m === 'SUBWAY' || m === 'METRO' ? 'tram' : 'rail')
     const shown = vs.filter(v =>
       (!f.lines || f.lines.has(v.line)) &&
       (!lineType || typeOf(v.mode) === lineType) &&
       (app.view !== 'lines' || app.lineFilter === 'all' || typeOf(v.mode) === app.lineFilter))
-    src.setData({
-      type: 'FeatureCollection',
-      features: shown.map(v => {
-        // Official VRS line colour when known (the feed's route colours differ), else the feed's.
-        const known = findLine(v.line, v.mode)
-        const color = known ? lineColor(known) : v.color ? `#${v.color}` : lineColors({ mode: v.mode }).bg
-        return { type: 'Feature', geometry: { type: 'Point', coordinates: v.at }, properties: { bearing: v.bearing, color, fg: readableOn(color), label: v.line, live: v.live, mine: f.mine.has(v.tripId) } }
-      }),
-    } as never)
+    const singles: unknown[] = [], parts: unknown[] = []
+    for (const v of shown) {
+      // Official VRS line colour when known (the feed's route colours differ), else the feed's.
+      const known = findLine(v.line, v.mode)
+      const color = known ? lineColor(known) : v.color ? `#${v.color}` : lineColors({ mode: v.mode }).bg
+      const mine = f.mine.has(v.tripId)
+      const props = { color, fg: readableOn(color), label: v.line, live: v.live, mine }
+      if (v.sections && spritesReady) {
+        // Your own tram uses the larger sprites, spaced wider along the track.
+        const secs = mine ? positions(new Map([[v.tripId, prepared.get(v.tripId)!]]), Date.now(), SECTION_PX_LG * mpp)[0]?.sections ?? v.sections : v.sections
+        const names = ['tram-front', 'tram-mid', 'tram-rear']
+        secs.forEach((sec, i) => parts.push({ type: 'Feature', geometry: { type: 'Point', coordinates: sec.at },
+          properties: { ...props, img: names[i] + (mine ? '-lg' : ''), bearing: sec.bearing, order: 2 - i + (mine ? 10 : 0) } }))
+      } else {
+        const icon = v.mode === 'BUS' && spritesReady ? 'bus' : 'veh'
+        singles.push({ type: 'Feature', geometry: { type: 'Point', coordinates: v.at }, properties: { ...props, icon, bearing: v.bearing } })
+      }
+    }
+    src.setData({ type: 'FeatureCollection', features: singles } as never)
+    ;(map.getSource('tram-parts') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: parts } as never)
   }
 
   // Animate ~5×/s; refetch every 30 s and after the map moves.
