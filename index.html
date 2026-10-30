@@ -12,6 +12,26 @@
     <link rel="icon" type="image/svg+xml" href="./icon.svg" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>OnTrack</title>
+    <script>
+      // Runs before first paint (same approach as Canopy, which works on the owner's iPhone).
+      // Home-screen app with a translucent status bar: iOS reports a viewport 59 px shorter than
+      // the screen (393x793 on 393x852), which leaves an uncovered strip at the bottom. Size the
+      // page root to the physical screen before anything is laid out.
+      ;(function () {
+        var root = document.documentElement
+        var standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches
+        if (!standalone) return
+        root.classList.add('standalone')
+        function size() {
+          var portrait = innerHeight >= innerWidth
+          var h = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width)
+          root.style.setProperty('--app-h', Math.max(h, innerHeight) + 'px')
+        }
+        size()
+        addEventListener('resize', size)
+        addEventListener('orientationchange', function () { setTimeout(size, 300) })
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

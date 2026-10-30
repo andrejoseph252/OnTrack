@@ -94,13 +94,12 @@
 
 html, body {
   margin: 0;
-  /* Page = viewport height, so there is nothing to scroll; map and panel are fixed and size
-     themselves from --app-h (the real screen height). Field focus bounce: see lib/focus.ts.
-     No overflow: hidden here: on the root it clips to the viewport, and in the iOS home-screen
-     app that viewport is 59 px shorter than the screen (393×793 on a 393×852 screen), which cut
-     the panel off above the bottom edge. Nothing is in normal flow, so nothing can scroll. */
-  height: 100%;
-  overflow: visible;
+  /* The page root takes the physical screen height (--app-h, set before first paint by the
+     script in index.html). In the iOS home-screen app the reported viewport is 59 px short;
+     sizing the root to the screen is what makes iOS lay out the full height (no bottom strip).
+     The page itself never scrolls; field focus bounce is handled in lib/focus.ts. */
+  height: var(--app-h, 100%);
+  overflow: hidden;
   /* Matches the panel, so iOS's home-indicator/toolbar strip under it shows no seam. */
   background: var(--glass-solid);
   color: var(--text);
@@ -117,8 +116,7 @@ html, body {
 }
 input, textarea { -webkit-user-select: text; user-select: text; }
 
-/* No position: fixed on body: WebKit clips fixed descendants (map, panel) to a fixed
-   ancestor's box, which is iOS's short viewport in the home-screen app: the bottom strip. */
+/* No position: fixed on body: WebKit clips fixed descendants (map, panel) to a fixed ancestor. */
 #app { height: 100%; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
