@@ -17,6 +17,12 @@
   let probe: HTMLDivElement
 
   const PEEK = 118
+  /**
+   * The panel extends this far past the bottom of the screen (with matching padding at the
+   * end of its content). iOS has reported a too-short viewport in the home-screen app, which
+   * left a strip under the panel; overscanning makes that independent of what iOS reports.
+   */
+  const OVERSCAN = 120
   /** Map left visible above the panel at its top position (below the status bar). */
   const TOP_GAP = 64
   const vh = $derived(app.vh)
@@ -177,8 +183,9 @@
   class:wide
   class:dragging={dragH !== null || instant}
   bind:this={sheet}
-  style:height={wide ? null : `${heights.full}px`}
+  style:height={wide ? null : `${heights.full + OVERSCAN}px`}
   style:--sheet-h={wide ? null : `${heights.full}px`}
+  style:--overscan={`${OVERSCAN}px`}
   style:transform={wide ? null : `translateY(${heights.full - height}px)`}
   aria-label="Panel"
 >
@@ -221,7 +228,7 @@
   .grab span { width: 40px; height: 5px; border-radius: 3px; background: var(--surface-3); }
   .content {
     flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    padding: 2px 16px calc(28px + env(safe-area-inset-bottom));
+    padding: 2px 16px calc(28px + env(safe-area-inset-bottom) + var(--overscan, 0px));
     -webkit-overflow-scrolling: touch;
   }
   .content { transition: transform .25s ease, opacity .25s ease; }
@@ -233,5 +240,5 @@
     top: 12px !important; bottom: 12px; left: 12px; right: auto; width: 420px; margin: 0;
     border-radius: 22px; transform: none; box-shadow: var(--shadow);
   }
-  .sheet.wide .content { padding-top: 16px; }
+  .sheet.wide .content { padding-top: 16px; padding-bottom: 28px; }
 </style>

@@ -51,7 +51,7 @@
 </Sheet>
 
 <style>
-  .map-placeholder { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h, 100vh); background: var(--bg); }
+  .map-placeholder { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--app-h, 100vh) + 120px); /* overscan past iOS's reported bottom, see Sheet */ background: var(--bg); }
   .statusfade {
     position: fixed; left: 0; right: 0; top: 0; z-index: 5; pointer-events: none;
     height: calc(env(safe-area-inset-top) + 28px);

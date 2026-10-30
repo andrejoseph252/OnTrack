@@ -327,7 +327,7 @@
 <div class="map" bind:this={el}></div>
 
 <style>
-  .map { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h, 100vh); }
+  .map { position: fixed; top: 0; left: 0; right: 0; height: calc(var(--app-h, 100vh) + 120px); /* overscan past iOS's reported bottom, see Sheet */ }
   :global(.maplibregl-ctrl-top-right) { top: env(safe-area-inset-top); }
   :global(.maplibregl-ctrl-group) { border-radius: 12px !important; box-shadow: var(--shadow) !important; overflow: hidden; }
   :global(.mk.start), :global(.mk.end) { width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 5px rgb(0 0 0 / 35%); }
