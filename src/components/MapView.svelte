@@ -7,7 +7,7 @@
   import { app, go, openTrip, search } from '../lib/state.svelte'
   import { theme } from '../lib/theme.svelte'
   import { prefs } from '../lib/prefs.svelte'
-  import { decodePolyline, headingAlong, type LngLat } from '../lib/geo'
+  import { decodePolyline, distance, headingAlong, type LngLat } from '../lib/geo'
   import { isTransit } from '../lib/realtime'
   import { lineColors, lineName } from '../lib/lines'
   import { isCity, isReplacement, lineColor, lineKey, loadNetwork, net, patternPath } from '../lib/network.svelte'
@@ -47,9 +47,19 @@
     }))
   }
 
+  /** A saved place within ~60 m of a point (route start/end), if any. */
+  function savedAt(lat: number, lon: number) {
+    return app.places.find(p => distance([p.lon, p.lat], [lon, lat]) < 60)
+  }
+
   function endpoints(it: Itinerary) {
     const a = it.legs[0].from, b = it.legs[it.legs.length - 1].to
-    return [{ html: '', at: [a.lon, a.lat] as LngLat, cls: 'mk start' }, { html: '', at: [b.lon, b.lat] as LngLat, cls: 'mk end' }]
+    const pa = savedAt(a.lat, a.lon), pb = savedAt(b.lat, b.lon)
+    const esc = (t: string) => t.replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`)
+    return [
+      pa ? { html: `<span>${esc(pa.icon)}</span>`, at: [a.lon, a.lat] as LngLat, cls: 'mk place-end start' } : { html: '', at: [a.lon, a.lat] as LngLat, cls: 'mk start' },
+      pb ? { html: `<span>${esc(pb.icon)}</span>`, at: [b.lon, b.lat] as LngLat, cls: 'mk place-end' } : { html: '', at: [b.lon, b.lat] as LngLat, cls: 'mk end' },
+    ]
   }
 
   const scene = $derived.by((): Scene | null => {
@@ -174,9 +184,39 @@
     map.fitBounds(bounds(pts), { padding: padding(), maxZoom: 17, duration: 650 })
   }
 
-  onMount(() => {
+  /**
+   * The detailed style without its heavy parts: the shaded-relief raster (extra image
+   * downloads, the "shadows"), 3D building extrusions and shop/restaurant icons.
+   * Buildings stay, drawn flat at every zoom.
+   */
+  function lighten(style: maplibregl.StyleSpecification): maplibregl.StyleSpecification {
+    const layers = style.layers
+      .filter(l => l.type !== 'raster' && l.type !== 'hillshade' && l.type !== 'fill-extrusion' && !/^poi_r\d+$/.test(l.id))
+      .map(l => {
+        if (l.id !== 'building') return l
+        const { maxzoom: _drop, ...flat } = l
+        return flat as maplibregl.LayerSpecification
+      })
+    const used = new Set(layers.map(l => ('source' in l ? l.source : undefined)).filter(Boolean))
+    const sources = Object.fromEntries(Object.entries(style.sources).filter(([k]) => used.has(k)))
+    return { ...style, layers, sources }
+  }
+
+  async function loadStyle(): Promise<string | maplibregl.StyleSpecification> {
+    if (prefs.mapStyle !== 'detailed') return STYLE
+    try {
+      return lighten(await (await fetch(STYLE)).json())
+    } catch {
+      return STYLE
+    }
+  }
+
+  onMount(() => { loadStyle().then(init) })
+
+  function init(style: string | maplibregl.StyleSpecification) {
+    if (!el?.isConnected) return
     map = new maplibregl.Map({
-      container: el, style: STYLE, center: BONN, zoom: 12.3, attributionControl: { compact: true },
+      container: el, style, center: BONN, zoom: 12.3, attributionControl: { compact: true },
       // Pitch/rotate gestures get in the way of one-handed use.
       dragRotate: false, pitchWithRotate: false, touchPitch: false,
     })
@@ -226,12 +266,16 @@
       }
       ready = true
     })
-  })
+  }
 
   // Saved places as small emoji pins (quiet, like Maps' saved-place markers). Tap = route there.
   let placeMarkers: maplibregl.Marker[] = []
   $effect(() => {
-    const places = app.places.map(p => ({ id: p.id, name: p.name, icon: p.icon, lat: p.lat, lon: p.lon }))
+    const shownIt = app.view === 'trip' ? app.selected?.it : app.view === 'search' ? app.results[0]?.it : undefined
+    const ends: LngLat[] = shownIt ? [[shownIt.legs[0].from.lon, shownIt.legs[0].from.lat], [shownIt.legs.at(-1)!.to.lon, shownIt.legs.at(-1)!.to.lat]] : []
+    const places = app.places
+      .filter(p => !ends.some(e => distance(e, [p.lon, p.lat]) < 60))
+      .map(p => ({ id: p.id, name: p.name, icon: p.icon, lat: p.lat, lon: p.lon }))
     const show = app.view !== 'line' && app.view !== 'stop'
     if (!ready) return
     placeMarkers.forEach(m => m.remove())
@@ -241,7 +285,10 @@
       el.type = 'button'
       el.title = p.name
       el.setAttribute('aria-label', `Route to ${p.name}`)
-      el.textContent = p.icon
+      // The map moves markers via `transform`; animating the press on an inner span keeps the pin glued to the map.
+      const inner = document.createElement('span')
+      inner.textContent = p.icon
+      el.append(inner)
       el.addEventListener('click', e => {
         e.stopPropagation()
         const place = app.places.find(x => x.id === p.id)
@@ -292,14 +339,19 @@
     position: absolute; left: 18px; top: -6px; white-space: nowrap; font: 750 12px/20px var(--font);
     padding: 0 7px; border-radius: 6px; box-shadow: 0 1px 5px rgb(0 0 0 / 30%);
   }
-  :global(.place-pin) {
-    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; padding: 0;
-    font-size: 15px; line-height: 1; cursor: pointer;
+  :global(.place-pin) { width: 30px; height: 30px; padding: 0; border: 0; background: none; cursor: pointer; }
+  :global(.place-pin span), :global(.mk.place-end span) {
+    width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center;
+    font-size: 15px; line-height: 1;
     background: var(--surface); border: 2px solid var(--surface);
     box-shadow: 0 0 0 1px rgb(127 127 127 / 22%), 0 1px 2px rgb(0 0 0 / 18%), 0 3px 10px rgb(0 0 0 / 22%);
     transition: transform .15s;
   }
-  :global(.place-pin:active) { transform: scale(.92); }
+  :global(.place-pin:active span) { transform: scale(.9); }
+  /* A saved place as the route's destination: same bubble, a bit larger, ringed in the accent colour. */
+  :global(.mk.place-end) { width: 36px; height: 36px; }
+  :global(.mk.place-end span) { font-size: 18px; box-shadow: 0 0 0 2.5px var(--accent), 0 2px 10px rgb(0 0 0 / 28%); }
+  :global(.mk.place-end.start span) { box-shadow: 0 0 0 2.5px var(--text), 0 2px 10px rgb(0 0 0 / 28%); }
   :global(.mk.quay) { display: flex; align-items: center; gap: 6px; }
   :global(.mk.quay .q-dot) { width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 35%); flex: none; }
   :global(.mk.quay .q-lbl) {
