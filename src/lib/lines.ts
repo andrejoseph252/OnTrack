@@ -18,8 +18,15 @@ export const isRail = (m: Mode) => RAIL.includes(m)
 
 export function lineColors(leg: { routeColor?: string; routeTextColor?: string; mode: Mode }) {
   const bg = leg.routeColor && leg.routeColor !== '000000' && leg.routeColor !== 'FFFFFF' ? `#${leg.routeColor}` : MODE_COLOR[leg.mode] ?? '#4a5563'
-  const fg = leg.routeColor && leg.routeTextColor ? `#${leg.routeTextColor}` : '#ffffff'
-  return { bg, fg }
+  return { bg, fg: readableOn(bg) }
+}
+
+/** Black or white text, whichever reads better on the line colour (e.g. lime 606 → black). */
+export function readableOn(hex: string) {
+  const n = parseInt(hex.replace('#', ''), 16)
+  const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255)
+  return L > 0.36 ? '#0f1218' : '#ffffff'
 }
 
 /** Rail: "IC 1645", "RB48" (route short names like "55" are internal); others: "602". */

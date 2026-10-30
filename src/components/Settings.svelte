@@ -1,6 +1,6 @@
 <script lang="ts">
   import { dbCreds, setDbCreds, testDbCreds } from '../lib/api/db'
-  import { app } from '../lib/state.svelte'
+  import { back } from '../lib/state.svelte'
 
   let clientId = $state(dbCreds()?.clientId ?? '')
   let apiKey = $state(dbCreds()?.apiKey ?? '')
@@ -36,10 +36,10 @@
 </script>
 
 <div class="page">
-  <header>
-    <button class="back" onclick={() => (app.view = 'search')} aria-label="Back">←</button>
+  <div class="view-head">
+    <button class="icon-btn" onclick={back} aria-label="Back"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /></svg></button>
     <h1>Settings</h1>
-  </header>
+  </div>
 
   <section class="card box">
     <h2>DB train data</h2>
@@ -59,11 +59,9 @@
 </div>
 
 <style>
-  .page { padding: 16px; display: grid; gap: 12px; }
-  header { display: flex; gap: 12px; align-items: center; }
-  h1 { font-size: 20px; margin: 0; }
+  .page { display: grid; gap: 12px; }
+  .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   h2 { font-size: 16px; margin: 0; }
-  .back { width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); font-size: 20px; }
   .box { padding: 14px; display: grid; gap: 10px; }
   .box p { margin: 0; }
   .box a { color: var(--accent); }

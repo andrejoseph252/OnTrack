@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte'
-  import { app, findBackup, openTrip, refreshSelected, replanFromHere } from '../lib/state.svelte'
+  import { app, back, findBackup, go, openTrip, refreshSelected, replanFromHere } from '../lib/state.svelte'
   import { checkLeg, isTransit } from '../lib/realtime'
   import { compass, decodePolyline, headingAlong } from '../lib/geo'
   import { duration, hm, metres, minutesUntil } from '../lib/format'
@@ -9,13 +9,16 @@
   import type { Transfer } from '../lib/transfer'
   import TimeBadge from './TimeBadge.svelte'
   import WalkSteps from './WalkSteps.svelte'
+  import LineBadge from './LineBadge.svelte'
   import LegStrip from './LegStrip.svelte'
 
   const a = $derived(app.selected!)
   const it = $derived(a.it)
-  let focus = $state<number | null>(null)
-  // Showing a leg on the map scrolls the map back into view.
-  $effect(() => { if (focus !== null) window.scrollTo({ top: 0, behavior: 'smooth' }) })
+  // Framing a leg lowers the sheet so the map is in view.
+  function showOnMap(i: number) {
+    app.tripFocus = i
+    app.sheet = 'peek'
+  }
   let openSteps = $state<Record<number, boolean>>({})
   let openStops = $state<Record<number, boolean>>({})
   let now = $state(new Date())
@@ -58,18 +61,16 @@
 </script>
 
 <div class="trip">
-  <div class="mapbox">
-    {#await import('./TripMap.svelte') then M}<M.default {it} {focus} />{/await}
-    <button class="back card" onclick={() => (app.view = 'search')} aria-label="Back">←</button>
-  </div>
-
-  <div class="sheet">
-    <div class="summary">
-      <div>
-        <div class="big tabular">{hm(checkLeg(it.legs[0]).dep.time)} – {hm(checkLeg(it.legs.at(-1)!).arr.time)}</div>
-        <div class="muted small">{duration(it.duration)} · {it.transfers} change{it.transfers === 1 ? '' : 's'} · {startsIn > 0 ? `leave in ${startsIn} min` : startsIn === 0 ? 'leave now' : 'in progress'}</div>
+  <div class="sheetc">
+    <div class="view-head">
+      <button class="icon-btn" onclick={back} aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /></svg>
+      </button>
+      <div class="ttl">
+        <h1 class="tabular">{hm(checkLeg(it.legs[0]).dep.time)} – {hm(checkLeg(it.legs.at(-1)!).arr.time)}</h1>
+        <div class="sub">{duration(it.duration)} · {it.transfers} change{it.transfers === 1 ? '' : 's'} · <b class:soon={startsIn <= 5 && startsIn >= 0}>{startsIn > 0 ? `leave in ${startsIn} min` : startsIn === 0 ? 'leave now' : 'in progress'}</b></div>
       </div>
-      <button class="btn" onclick={replanFromHere}>Re-plan from here</button>
+      <button class="btn replan" onclick={replanFromHere}>Re-plan</button>
     </div>
     <LegStrip {it} />
 
@@ -127,8 +128,8 @@
             <li class="walk">
               <div class="rail"><span class="dots"></span></div>
               <div class="body">
-                <button class="head" onclick={() => (focus = i)}>
-                  <span>🚶 Walk {duration(leg.duration)}{#if leg.distance} · {metres(leg.distance)}{/if}</span>
+                <button class="head" onclick={() => showOnMap(i)}>
+                  <span class="wl"><svg class="wki" viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2" /><path d="m9 21 3-7 3 3v4M7 12l2-4 4-1 2 4 3 1M12 14l-1-4" /></svg> Walk {duration(leg.duration)}{#if leg.distance} · {metres(leg.distance)}{/if}</span>
                 </button>
                 {#if target}
                   <div class="goal">
@@ -157,10 +158,10 @@
             <div class="body">
               <div class="stoprow">
                 <TimeBadge t={t.dep} {db} big />
-                <button class="stopname" onclick={() => { app.stop = { id: leg.from.stopId!, name: leg.from.name }; app.view = 'stop' }} disabled={!leg.from.stopId}>{leg.from.name}</button>
+                <button class="stopname" onclick={() => { app.stop = { name: leg.from.name, lat: leg.from.lat, lon: leg.from.lon }; go('stop', 'half') }}>{leg.from.name}</button>
               </div>
 
-              <button class="where" onclick={() => (focus = i)}>
+              <button class="where" onclick={() => showOnMap(i)}>
                 {#if db?.platform && db.plannedPlatform && db.platform !== db.plannedPlatform}
                   <span class="plat changed">Platform {db.platform} <small>(changed from {db.plannedPlatform})</small></span>
                 {:else if db?.platform}
@@ -177,7 +178,7 @@
               </button>
 
               <div class="line">
-                <span class="line-badge" style:background={c.bg} style:color={c.fg}>{lineName(leg)}</span>
+                <LineBadge name={lineName(leg)} mode={leg.mode} bg={c.bg} fg={c.fg} headsign={leg.headsign} />
                 <span><b>{leg.headsign}</b></span>
               </div>
               <div class="small muted">
@@ -222,15 +223,12 @@
 </div>
 
 <style>
-  .trip { display: flex; flex-direction: column; min-height: 100dvh; }
-  .mapbox { position: sticky; top: 0; height: 42dvh; z-index: 1; }
-  .back { position: absolute; top: 12px; left: 12px; width: 40px; height: 40px; border: 0; font-size: 20px; z-index: 2; }
-  .sheet {
-    position: relative; z-index: 2; margin-top: -16px; background: var(--bg); border-radius: 18px 18px 0 0;
-    padding: 16px; display: grid; gap: 12px; align-content: start; box-shadow: 0 -4px 16px rgb(0 0 0 / 8%);
-  }
-  .summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .big { font-size: 22px; font-weight: 700; }
+  .sheetc { display: grid; gap: 12px; align-content: start; }
+  .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .ttl { flex: 1; min-width: 0; }
+  .ttl b { font-weight: 650; color: var(--text-2); }
+  .ttl b.soon { color: var(--warn); }
+  .replan { padding: 9px 14px; font-size: 14px; }
   .status { display: flex; justify-content: space-between; }
   .link { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; text-align: left; }
 
@@ -242,12 +240,14 @@
   .dots { width: 0; border-left: 3px dotted var(--walk); margin: 4px 0; }
   .pin { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-shadow: 0 0 0 2px var(--accent); margin-top: 2px; }
   .body { display: grid; gap: 6px; padding: 6px 0 14px; min-width: 0; }
-  .head { background: none; border: 0; padding: 0; text-align: left; font-weight: 600; }
+  .head { background: none; border: 0; padding: 0; text-align: left; font-weight: 650; }
+  .wl { display: inline-flex; align-items: center; gap: 6px; }
+  .wki { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .goal b, .txt { color: var(--text); font-weight: 600; }
   .stoprow { display: flex; gap: 10px; align-items: baseline; }
   .stopname { background: none; border: 0; padding: 0; font-weight: 650; font-size: 16px; text-align: left; }
   .stopname:not(:disabled) { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
-  .where { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; text-align: left; }
+  .where { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; background: var(--surface); border: 0; box-shadow: var(--shadow-sm); border-radius: 12px; padding: 10px 12px; text-align: left; }
   .plat { font-weight: 700; font-size: 15px; }
   .goal .plat { margin-left: 6px; font-size: 14px; }
   .gap { margin-left: 6px; }
@@ -264,5 +264,4 @@
   .dot.live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
   .dbb { font-size: 10px; font-weight: 700; color: #fff; background: #ec0016; padding: 0 4px; border-radius: 4px; }
   .q { font-size: 10px; font-weight: 700; color: var(--warn); background: var(--warn-soft); padding: 0 5px; border-radius: 4px; }
-  @media (min-width: 900px) { .mapbox { height: 50dvh; } }
 </style>

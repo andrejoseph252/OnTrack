@@ -65,9 +65,10 @@ export function plan(o: PlanOptions, signal?: AbortSignal) {
   }, signal)
 }
 
-export function stopTimes(stopId: string, opts: { time?: Date; n?: number } = {}, signal?: AbortSignal) {
+/** Departures at a stop id, or at all quays within `radius` m of a position. */
+export function stopTimes(at: { id?: string; lat?: number; lon?: number }, opts: { time?: Date; n?: number; radius?: number } = {}, signal?: AbortSignal) {
   return get<StopTimesResponse>('/api/v5/stoptimes', {
-    stopId,
+    ...(at.id ? { stopId: at.id } : { center: `${at.lat},${at.lon}`, radius: opts.radius ?? 120 }),
     n: opts.n ?? 20,
     time: opts.time?.toISOString(),
     language: 'de',

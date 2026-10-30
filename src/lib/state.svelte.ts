@@ -25,6 +25,44 @@ export interface Filters {
   buffer: boolean
 }
 export type TimeMode = 'now' | 'depart' | 'arrive'
+export type View = 'search' | 'trip' | 'stop' | 'places' | 'settings' | 'lines' | 'line'
+export type Snap = 'peek' | 'half' | 'full'
+/** A stop for the departures board: a Transitous stop id, or a position (all quays within ~120 m). */
+export interface StopRef { id?: string; name: string; lat?: number; lon?: number; /** Opened from this line's map: offer "only this line". */ line?: string }
+
+/** Top-level tabs; everything else is a sub-view reached from them and left with Back. */
+export const ROOT_VIEWS: View[] = ['search', 'lines', 'places']
+const stack: View[] = []
+
+/** Navigate to a view, with a sensible sheet height for it. Sub-views get a history entry,
+ *  so the phone's back gesture walks back through them. */
+export function go(view: View, sheet?: Snap) {
+  if (view !== app.view) {
+    if (ROOT_VIEWS.includes(view)) {
+      stack.length = 0
+      history.replaceState(null, '', location.pathname + location.search)
+    } else {
+      stack.push(app.view)
+      history.pushState({ view }, '', `#${view}`)
+    }
+    app.view = view
+  }
+  app.sheet = sheet ?? (app.sheet === 'peek' ? 'half' : app.sheet)
+}
+
+export function back() {
+  if (stack.length) history.back()
+  else go('search')
+}
+
+if (typeof window !== 'undefined') {
+  // State isn't restored across reloads, so never start on a sub-view.
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search)
+  addEventListener('popstate', () => {
+    app.view = stack.pop() ?? 'search'
+    if (app.sheet === 'peek') app.sheet = 'half'
+  })
+}
 
 /** Everything the Deutschlandticket covers: all local transport and regional trains, no IC/ICE/EC/FlixTrain/coaches. */
 export const DTICKET_MODES: Mode[] = ['TRAM', 'SUBWAY', 'METRO', 'BUS', 'FERRY', 'REGIONAL_FAST_RAIL', 'REGIONAL_RAIL', 'SUBURBAN', 'FUNICULAR', 'AERIAL_LIFT', 'CABLE_CAR', 'ODM']
@@ -62,7 +100,18 @@ export function timetableFallback(live: Itinerary[], broken: Annotated[], schedu
 const tripKey = (it: Itinerary) => it.legs.filter(isTransit).map(l => l.tripId).join('>')
 
 export const app = $state({
-  view: 'search' as 'search' | 'trip' | 'stop' | 'places' | 'settings',
+  view: 'search' as View,
+  /** Bottom-sheet position on phones; ignored on wide screens (side panel). */
+  sheet: 'half' as Snap,
+  /** Visible height of the sheet in px, so the map can keep routes out from under it. */
+  sheetPx: 0,
+  /** Leg of the open trip to frame on the map. */
+  tripFocus: null as number | null,
+  /** Result card being previewed on the map (search view). */
+  preview: null as number | null,
+  /** Selected line in the network view, and which direction is shown. */
+  line: null as { key: string; dir: number } | null,
+  lineFilter: 'tram' as 'tram' | 'bus' | 'rail' | 'all',
   from: null as Loc | null, // null = current location
   to: null as Loc | null,
   timeMode: 'now' as TimeMode,
@@ -82,7 +131,9 @@ export const app = $state({
   /** DB Timetables cross-checks per tripId: departure and arrival end of the leg. */
   db: {} as Record<string, DbCheck | null>,
   dbArr: {} as Record<string, DbCheck | null>,
-  stop: null as { id: string; name: string } | null,
+  stop: null as StopRef | null,
+  /** Stopping points at the open stop, with where they go: drawn on the map. */
+  stopQuays: [] as { lat: number; lon: number; label: string; to: string[]; color: string }[],
   backups: {} as Record<number, Annotated[] | 'loading' | 'none'>,
 })
 
@@ -193,7 +244,8 @@ export function openTrip(a: Annotated) {
   app.selected = a
   app.selectedStale = false
   app.backups = {}
-  app.view = 'trip'
+  app.tripFocus = null
+  go('trip', 'half')
   crossCheckWithDb(a.it).then(() => { if (app.selected === a) app.selected = annotate(a.it, a.fallback) })
   for (const t of a.transfers) if (t.level === 'risky' || t.level === 'missed') findBackup(t)
 }
@@ -268,6 +320,6 @@ export async function findBackup(t: Transfer) {
 export async function replanFromHere() {
   app.from = null
   app.timeMode = 'now'
-  app.view = 'search'
+  go('search', 'half')
   await search()
 }

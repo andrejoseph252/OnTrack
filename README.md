@@ -22,6 +22,8 @@ Settings → Pages → Source: **GitHub Actions**.
 | Live departures | Transitous `/api/v5/stoptimes` (nationwide GTFS-RT) |
 | DB cross-check (optional) | Any db-rest server (`src/lib/api/db.ts`), used only on exact match |
 | Signposted quay names ("Gleis U3a", "Bussteig E") | VRS static GTFS → `public/data/vrs-quays.json`, refreshed weekly by `.github/workflows/vrs-data.yml` |
+| Line maps (195 lines serving Bonn / Rhein-Sieg: route, stops, colours) | VRS static GTFS → `public/data/lines.json` (`scripts/vrs-lines.mjs`, same weekly workflow) |
+| Train delays, platforms, cancellations | DB Timetables API (keys entered in ⚙ Settings, stored on-device) |
 | Map | MapLibre + OpenFreeMap tiles |
 
 ### Accuracy rules (`src/lib/realtime.ts`, `src/lib/transfer.ts`, `src/lib/lines.ts`)
@@ -35,6 +37,14 @@ The free live feed has real problems in Bonn. Each rule below comes from data ob
 - **Transfers:** slack = next departure − arrival − walk. Under 2 min is risky, under 5 min is tight. Uncertain arrival data raises the risk one level. Risky transfers fetch backup options automatically.
 - **Duplicated departures** on boards are merged, keeping the most plausible copy.
 - Live data refreshes every 30 s and whenever the app comes back to the foreground. If the selected connection disappears from live results, the app says so.
+
+## Interface
+
+Map-first: a full-screen map with a draggable bottom sheet (peek / half / full) on phones, a side panel on wide screens.
+The map always shows what the sheet is about: all candidate routes while choosing, the trip's legs and boarding
+points, the whole network (Lines tab), a single line with its stops, or a stop's individual stopping points with
+where each goes ("→ 62 Oberkassel"), so you can see which side of the street to stand on. Tapping any line badge
+opens that line's map; tapping a stop on a line opens its departures.
 
 ## Roadmap
 
@@ -52,7 +62,8 @@ The free live feed has real problems in Bonn. Each rule below comes from data ob
 6. Follow-me mode in a trip: live position on the map, "get off in 2 stops", next-step prompts.
 
 **Network**
-- **Route maps for every bus and tram line** (from `todo.md`): line list → full route with all stops on the map, live vehicles. Transitous has `/api/experimental/map/routes` + `route-details` and `/api/v6/map/trips` for this.
+- ~~Route maps for every bus and tram line~~ (done: Lines tab).
+- Live vehicle positions on a line's map (Transitous `/api/v6/map/trips`).
 
 **Comfort**
 7. Saved places export/import (JSON), and "from home" as well as "to home".

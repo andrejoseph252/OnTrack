@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app, persistPlaces, type Loc } from '../lib/state.svelte'
   import PlaceInput from './PlaceInput.svelte'
+  import TopNav from './TopNav.svelte'
 
   const ICONS = ['🏠', '🎓', '💼', '🏋️', '🛒', '❤️', '☕', '⭐']
   let name = $state('')
@@ -30,11 +31,9 @@
   }
 </script>
 
+<TopNav />
 <div class="page">
-  <header>
-    <button class="back" onclick={() => (app.view = 'search')} aria-label="Back">←</button>
-    <h1>My places</h1>
-  </header>
+  <div class="view-head"><h1>Saved places</h1></div>
 
   <div class="card form">
     <div class="icons">
@@ -61,10 +60,7 @@
 </div>
 
 <style>
-  .page { padding: 16px; display: grid; gap: 12px; }
-  header { display: flex; gap: 12px; align-items: center; }
-  h1 { font-size: 20px; margin: 0; }
-  .back { width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); font-size: 20px; }
+  .page { display: grid; gap: 12px; }
   .form { padding: 14px; display: grid; gap: 10px; }
   .icons { display: flex; gap: 6px; flex-wrap: wrap; }
   .name { border: 0; background: var(--surface-2); border-radius: 10px; padding: 11px 12px; font-size: 16px; outline: none; }

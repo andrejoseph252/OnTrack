@@ -1,42 +1,59 @@
 :root {
-  --bg: #f6f7f9;
+  --bg: #f3f4f7;
   --surface: #ffffff;
-  --surface-2: #eef0f3;
-  --text: #14171c;
-  --muted: #5d6673;
-  --line: #e2e5ea;
-  --accent: #0b6bcb;
-  --accent-soft: #e3effb;
-  --ok: #18794e;
-  --ok-soft: #e1f5ea;
-  --warn: #a35200;
-  --warn-soft: #fff1dc;
-  --bad: #c4161c;
-  --bad-soft: #fde8e8;
-  --walk: #7a8594;
-  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 4px 16px rgb(16 24 40 / 6%);
-  --radius: 14px;
+  --surface-2: #f0f1f5;
+  --surface-3: #e6e8ee;
+  --glass: rgb(255 255 255 / 86%);
+  --text: #0f1218;
+  --text-2: #3b4250;
+  --muted: #6b7380;
+  --line: #e3e6ec;
+  --accent: #1f6feb;
+  --accent-2: #0b4fc4;
+  --accent-soft: #e5efff;
+  --on-accent: #ffffff;
+  --ok: #138a52;
+  --ok-soft: #e0f5ea;
+  --warn: #a85a00;
+  --warn-soft: #fff2de;
+  --bad: #d1242f;
+  --bad-soft: #ffe9ea;
+  --walk: #7b8594;
+  --shadow-sm: 0 1px 2px rgb(15 18 24 / 6%);
+  --shadow: 0 1px 2px rgb(15 18 24 / 5%), 0 6px 20px rgb(15 18 24 / 7%);
+  --shadow-lg: 0 -2px 6px rgb(15 18 24 / 5%), 0 -12px 40px rgb(15 18 24 / 12%);
+  --radius: 16px;
+  --radius-sm: 11px;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #0e1116;
-    --surface: #171b22;
-    --surface-2: #212732;
-    --text: #e8ebf0;
-    --muted: #9aa4b2;
-    --line: #2a313c;
-    --accent: #5aa9f5;
-    --accent-soft: #15283d;
-    --ok: #4cc38a;
-    --ok-soft: #12291e;
-    --warn: #f0a44b;
-    --warn-soft: #33240f;
-    --bad: #ff6b6b;
-    --bad-soft: #3a1618;
-    --walk: #8994a3;
-    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 16px rgb(0 0 0 / 25%);
+    --bg: #0b0d12;
+    --surface: #151922;
+    --surface-2: #1d222d;
+    --surface-3: #272d3a;
+    --glass: rgb(17 20 27 / 86%);
+    --text: #eef1f6;
+    --text-2: #c3c9d4;
+    --muted: #8d96a5;
+    --line: #262c38;
+    --accent: #5ea1ff;
+    --accent-2: #8bbcff;
+    --accent-soft: #14253f;
+    --on-accent: #08111f;
+    --ok: #4cd18d;
+    --ok-soft: #10281c;
+    --warn: #ffb35c;
+    --warn-soft: #33230e;
+    --bad: #ff6b72;
+    --bad-soft: #3a1519;
+    --walk: #8a95a5;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 6px 20px rgb(0 0 0 / 30%);
+    --shadow-lg: 0 -2px 6px rgb(0 0 0 / 25%), 0 -12px 40px rgb(0 0 0 / 45%);
     color-scheme: dark;
   }
 }
@@ -45,53 +62,69 @@
 
 html, body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 15px/1.4 var(--font);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
-#app { max-width: 640px; margin: 0 auto; min-height: 100dvh; }
+#app { height: 100%; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
 input { font: inherit; color: inherit; }
+a { color: var(--accent); }
 
-.card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
+.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .tabular { font-variant-numeric: tabular-nums; }
 
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: 999px;
+  padding: 8px 13px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--surface);
-  font-size: 14px; white-space: nowrap;
+  font-size: 14px; font-weight: 500; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
 }
-.chip[aria-pressed='true'] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 .btn {
-  border: 0; border-radius: 12px; padding: 12px 16px;
-  background: var(--accent); color: #fff; font-weight: 600;
+  border: 0; border-radius: 13px; padding: 12px 16px;
+  background: var(--accent); color: var(--on-accent); font-weight: 650;
+  transition: transform .1s, opacity .15s;
 }
+.btn:active { transform: scale(.97); }
 .btn.ghost { background: var(--surface-2); color: var(--text); }
 .btn:disabled { opacity: .5; }
 
-.line-badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 34px; padding: 2px 7px; border-radius: 6px;
-  font-weight: 700; font-size: 13px; line-height: 18px;
+.icon-btn {
+  width: 40px; height: 40px; border: 0; border-radius: 50%;
+  display: inline-grid; place-items: center; flex: none;
+  background: var(--surface-2); color: var(--text); font-size: 18px;
 }
 
-.banner { padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.line-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 36px; height: 24px; padding: 0 7px; border-radius: 7px;
+  font-weight: 750; font-size: 13px; letter-spacing: -.01em; border: 0;
+}
+.line-badge.tram { border-radius: 12px; }
+
+.banner { padding: 11px 13px; border-radius: 12px; font-size: 14px; }
 .banner.warn { background: var(--warn-soft); color: var(--warn); }
 .banner.bad { background: var(--bad-soft); color: var(--bad); }
 .banner.ok { background: var(--ok-soft); color: var(--ok); }
 .banner.info { background: var(--accent-soft); color: var(--accent); }
+
+.link { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; text-align: left; }
+
+/* Shared header for screens inside the sheet */
+.view-head { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.view-head h1 { font: 700 21px/1.15 var(--display); letter-spacing: -.02em; margin: 0; flex: 1; min-width: 0; }
+.view-head .sub { font-size: 13px; color: var(--muted); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
