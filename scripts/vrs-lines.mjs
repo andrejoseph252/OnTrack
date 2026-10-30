@@ -109,15 +109,26 @@ const routes = new Map()
 for (const r of readSmall('routes.txt')) {
   const type = TYPES[r.route_type]
   if (!type) continue
-  // Skip depot/special services without a public description (e.g. "BE62", "E").
-  if (!r.route_desc && /^(BE|E$)/.test(r.route_short_name)) continue
+  // Skip unnamed special services ("E" = Einsatzwagen). "BE61" etc. are kept: tram replacement buses.
+  if (!r.route_desc && r.route_short_name === 'E') continue
   routes.set(r.route_id, r)
 }
 
 // --- 2. trips: count shape usage per route+direction ---
 const tripInfo = new Map() // trip_id -> key
 const shapeCount = new Map() // key -> Map(shape -> {n, trip, headsign})
+/** Service ids per tram-replacement bus route ("BE61"), to work out which days they run. */
+const replacementServices = new Map()
+/** trip_id -> { name: 'BE61', headsign, service } for tram replacement buses. */
+const replacementTrips = new Map()
 await eachRow('trips.txt', t => {
+  const rr = routes.get(t.route_id)
+  if (rr && /^BE\d+$/.test(rr.route_short_name)) {
+    const set = replacementServices.get(rr.route_short_name) ?? new Set()
+    set.add(t.service_id)
+    replacementServices.set(rr.route_short_name, set)
+    replacementTrips.set(t.trip_id, { name: rr.route_short_name, headsign: t.trip_headsign, service: t.service_id })
+  }
   if (!routes.has(t.route_id) || !t.shape_id) return
   const key = `${t.route_id}|${t.direction_id || 0}`
   const m = shapeCount.get(key) ?? new Map()
@@ -135,7 +146,14 @@ for (const [key, m] of shapeCount) {
 
 // --- 3. stop_times for representative trips only ---
 const tripStops = new Map()
+/** Stop times of replacement-bus trips: trip_id -> [[seq, stop_id, 'HH:MM:SS']]. */
+const replacementTimes = new Map()
 await eachRow('stop_times.txt', st => {
+  if (replacementTrips.has(st.trip_id)) {
+    const a = replacementTimes.get(st.trip_id) ?? []
+    a.push([+st.stop_sequence, st.stop_id, st.departure_time])
+    replacementTimes.set(st.trip_id, a)
+  }
   if (!candidates.has(st.trip_id)) return
   const a = tripStops.get(st.trip_id) ?? []
   a.push([+st.stop_sequence, st.stop_id])
@@ -202,7 +220,8 @@ for (const [trip, rep] of reps) {
     color: r.route_color && r.route_color !== '000000' ? r.route_color : null,
     text: r.route_text_color || 'FFFFFF',
     operator: agencies[r.agency_id] ?? '',
-    desc: (r.route_desc.match(/H:\s*([^|]+)/)?.[1] ?? r.route_long_name ?? '').trim(),
+    desc: (r.route_desc.match(/H:\s*([^|]+)/)?.[1] ?? r.route_long_name ?? '').trim()
+      || (/^BE(\d+)$/.test(r.route_short_name) ? `Replacement bus for tram ${r.route_short_name.slice(2)}` : ''),
     patterns: [],
   }
   // Some shapes are straight stop-to-stop hops (express and replacement buses): flag as approximate.
@@ -220,6 +239,33 @@ for (const l of lines.values()) {
   l.patterns = [...byDir.values()]
 }
 
+// --- 7. which days tram replacement buses run (next 28 days) ---
+const cal = new Map(readSmall('calendar.txt').map(c => [c.service_id, c]))
+const exceptions = new Map()
+for (const c of readSmall('calendar_dates.txt')) {
+  const m = exceptions.get(c.service_id) ?? new Map()
+  m.set(c.date, c.exception_type)
+  exceptions.set(c.service_id, m)
+}
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+function runs(sid, date, weekday) {
+  const e = exceptions.get(sid)?.get(date)
+  if (e === '1') return true
+  if (e === '2') return false
+  const c = cal.get(sid)
+  return !!c && c.start_date <= date && date <= c.end_date && c[weekday] === '1'
+}
+const replacements = {}
+for (const [name, sids] of replacementServices) {
+  const days = []
+  for (let i = 0; i < 28; i++) {
+    const d = new Date(Date.now() + i * 86400000)
+    const ymd = d.toISOString().slice(0, 10).replace(/-/g, '')
+    if ([...sids].some(sid => runs(sid, ymd, WEEKDAYS[d.getUTCDay()]))) days.push(ymd)
+  }
+  if (days.length) replacements[name.slice(2)] = days
+}
+
 const typeOrder = { tram: 0, bus: 1, rail: 2, ferry: 3 }
 const natural = (a, b) => a.localeCompare(b, 'de', { numeric: true })
 const sorted = [...lines.values()]
@@ -227,5 +273,38 @@ const sorted = [...lines.values()]
   .sort((a, b) => typeOrder[a.type] - typeOrder[b.type] || natural(a.name, b.name) || natural(a.operator, b.operator))
 
 mkdirSync(dirname(out), { recursive: true })
-writeFileSync(out, JSON.stringify({ source: 'VRS GTFS (dl-de/zero-2-0)', generated: new Date().toISOString().slice(0, 10), lines: sorted, stops: stopsOut }))
-console.log(`${sorted.length} lines, ${stopsOut.length} stops → ${out}`)
+// Replacement-bus departures for the next 3 days, so the app can show them where the national
+// timetable (Transitous/DELFI) lacks them. Compact: stops table + trips with [stopIdx, "HH:MM"].
+{
+  const stopIdx = new Map(), stopsTab = []
+  const ref = id => {
+    if (!stopIdx.has(id)) {
+      const q = allStops.get(id)
+      if (!q) return -1
+      stopIdx.set(id, stopsTab.length)
+      const parent = allStops.get(q.parent_station) ?? q
+      stopsTab.push([id, parent.stop_name, +(+q.stop_lat).toFixed(5), +(+q.stop_lon).toFixed(5)])
+    }
+    return stopIdx.get(id)
+  }
+  const days = {}
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(Date.now() + i * 86400000)
+    const ymd = d.toISOString().slice(0, 10).replace(/-/g, '')
+    const list = []
+    for (const [tripId, info] of replacementTrips) {
+      if (!runs(info.service, ymd, WEEKDAYS[d.getUTCDay()])) continue
+      const times = (replacementTimes.get(tripId) ?? []).sort((a, b) => a[0] - b[0])
+      if (times.length < 2) continue
+      list.push({ line: info.name.slice(2), name: info.name, headsign: info.headsign, stops: times.map(([, id, t]) => [ref(id), t.slice(0, 5)]).filter(([i]) => i >= 0) })
+    }
+    if (list.length) days[ymd] = list
+  }
+  const repOut = join(dirname(out), 'replacements.json')
+  writeFileSync(repOut, JSON.stringify({ source: 'VRS GTFS (dl-de/zero-2-0)', generated: new Date().toISOString().slice(0, 10), stops: stopsTab, days }))
+  console.log(`replacement departures: ${Object.entries(days).map(([d, l]) => `${d}:${l.length} trips`).join(', ')} → ${repOut}`)
+}
+
+// replacements: tram line → days (YYYYMMDD) when its "BE" replacement buses run.
+writeFileSync(out, JSON.stringify({ source: 'VRS GTFS (dl-de/zero-2-0)', generated: new Date().toISOString().slice(0, 10), lines: sorted, stops: stopsOut, replacements }))
+console.log(`${sorted.length} lines, ${stopsOut.length} stops, replacements ${JSON.stringify(replacements)} → ${out}`)

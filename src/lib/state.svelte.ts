@@ -169,7 +169,12 @@ export function currentPosition(): Promise<Loc> {
   })
 }
 
-const point = (l: Loc): PlanPoint => (l.stopId ? { stopId: l.stopId } : { lat: l.lat, lon: l.lon })
+/**
+ * Always plan from the position, never a stop id: a stop picked from search is one specific
+ * platform (e.g. Chlodwigplatz 1:11), and planning from it hides lines using the station's other
+ * platforms (the 61 there). From the position, every platform within walking distance counts.
+ */
+const point = (l: Loc): PlanPoint => ({ lat: l.lat, lon: l.lon })
 
 function options(from: Loc, to: Loc, time: Date | undefined, arriveBy: boolean): PlanOptions {
   const f = app.filters

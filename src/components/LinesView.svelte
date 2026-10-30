@@ -1,7 +1,7 @@
 <script lang="ts">
   import { noScrollFocus } from '../lib/focus'
   import { app, go } from '../lib/state.svelte'
-  import { isReplacement, lineColor, lineKey, lineText, loadNetwork, net, type Line } from '../lib/network.svelte'
+  import { isReplacement, isTramReplacement, lineColor, lineKey, lineText, loadNetwork, net, replacedToday, type Line } from '../lib/network.svelte'
   import TopNav from './TopNav.svelte'
 
   loadNetwork()
@@ -18,11 +18,14 @@
   const groups = $derived.by(() => {
     const needle = q.trim().toLowerCase()
     const matches = (l: Line) => !needle || l.name.toLowerCase().startsWith(needle) || l.desc.toLowerCase().includes(needle) || l.patterns.some(p => p.headsign.toLowerCase().includes(needle))
-    const list = net.lines.filter(l => (needle || app.lineFilter === 'all' || l.type === app.lineFilter) && matches(l))
+    // Tram replacement buses are listed with the trams (that's where you'd look for them).
+    const inFilter = (l: Line) => app.lineFilter === 'all' || l.type === app.lineFilter || (app.lineFilter === 'tram' && isTramReplacement(l))
+    const list = net.lines.filter(l => (needle || inFilter(l)) && matches(l))
     const out = new Map<string, Line[]>()
-    const label = (l: Line) => (l.type === 'tram' ? 'Stadtbahn & tram' : l.type === 'rail' ? 'Trains' : l.type === 'ferry' ? 'Ferries' : isReplacement(l) ? 'Rail replacement buses' : `Bus · ${opName(l)}`)
+    const label = (l: Line) => (l.type === 'tram' ? 'Stadtbahn & tram' : l.type === 'rail' ? 'Trains' : l.type === 'ferry' ? 'Ferries'
+      : isTramReplacement(l) ? 'Tram replacement buses' : isReplacement(l) ? 'Rail replacement buses' : `Bus · ${opName(l)}`)
     for (const l of list) out.set(label(l), [...(out.get(label(l)) ?? []), l])
-    const rank = (t: string) => ['Stadtbahn & tram', 'Bus · SWB Bonn', 'Bus · RSVG Rhein-Sieg', 'Bus · RVK', 'Bus · KVB Köln', 'Bus · Other operators', 'Trains', 'Ferries', 'Rail replacement buses'].indexOf(t)
+    const rank = (t: string) => ['Stadtbahn & tram', 'Tram replacement buses', 'Bus · SWB Bonn', 'Bus · RSVG Rhein-Sieg', 'Bus · RVK', 'Bus · KVB Köln', 'Bus · Other operators', 'Trains', 'Ferries', 'Rail replacement buses'].indexOf(t)
     return [...out].sort((a, b) => rank(a[0]) - rank(b[0]))
   })
 
@@ -67,7 +70,7 @@
         <li>
           <button onclick={() => open(l)}>
             <span class="pill" class:tram={l.type === 'tram'} style:background={lineColor(l)} style:color={lineText(l)}>{l.name}</span>
-            <span class="txt"><b>{ends(l)}</b><small>{l.desc || l.operator}</small></span>
+            <span class="txt"><b>{ends(l)}</b>{#if l.type === 'tram' && replacedToday(l.name)}<small class="repl">Partly replacement buses today</small>{:else}<small>{l.desc || l.operator}</small>{/if}</span>
             <svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
           </button>
         </li>
@@ -98,5 +101,6 @@
   .txt { flex: 1; min-width: 0; display: grid; }
   .txt b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .txt small { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .txt small.repl { color: var(--warn); font-weight: 600; }
   .chev { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 2; flex: none; }
 </style>

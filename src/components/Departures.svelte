@@ -8,6 +8,8 @@
   import { lineColors, lineName, platformLabel } from '../lib/lines'
   import TimeBadge from './TimeBadge.svelte'
   import LineBadge from './LineBadge.svelte'
+  import { replacementDepartures } from '../lib/replacements'
+  import { net } from '../lib/network.svelte'
 
   let list = $state<StopTime[]>([])
   let error = $state('')
@@ -16,14 +18,23 @@
   let now = $state(new Date())
   let onlyLine = $state(!!app.stop?.line)
 
-  const shown = $derived(onlyLine && app.stop?.line ? list.filter(st => lineName(st) === app.stop!.line || st.routeShortName === app.stop!.line) : list)
+  // "Line 61" also shows its replacement buses (BE61).
+  const shown = $derived(onlyLine && app.stop?.line ? list.filter(st => [app.stop!.line, `BE${app.stop!.line}`].includes(lineName(st)) || st.routeShortName === app.stop!.line) : list)
 
   async function load() {
     const s = app.stop
     if (!s) return
     try {
       const r = await stopTimes(s, { n: 40 })
-      list = dedupeStopTimes(r.stopTimes)
+      let rows: StopTime[] = dedupeStopTimes(r.stopTimes)
+      // Add tram replacement buses from the VRS timetable when any run today and the national
+      // timetable doesn't already have them (it has been missing them).
+      if (Object.keys(net.replacements).length && s.lat != null && s.lon != null) {
+        const have = new Set(rows.map(x => `${lineName(x)}|${x.place.scheduledDeparture?.slice(0, 16)}`))
+        const extra = (await replacementDepartures(s.lat, s.lon)).filter(x => !have.has(`${x.routeShortName}|${x.place.scheduledDeparture?.slice(0, 16)}`))
+        rows = [...rows, ...extra].sort((a, b) => new Date(a.place.departure!).getTime() - new Date(b.place.departure!).getTime())
+      }
+      list = rows
       updated = new Date()
       publishQuays()
       error = ''
@@ -88,7 +99,7 @@
       <LineBadge name={lineName(st)} mode={st.mode} bg={c.bg} fg={c.fg} headsign={st.headsign} />
       <span class="dest">
         <b>{st.headsign}</b>
-        <span class="small muted">{plat}{#if ghost}{plat ? ' · ' : ''}<span class="warn">Probably not running as shown: live data matched to a trip from {hm(t.planned)}</span>{:else if t.reason}{plat ? ' · ' : ''}<span class="warn">{t.reason}</span>{/if}</span>
+        <span class="small muted">{#if 'replacement' in st}<span class="rep">Replacement bus · timetable</span>{plat ? ' · ' : ''}{/if}{plat}{#if ghost}{plat ? ' · ' : ''}<span class="warn">Probably not running as shown: live data matched to a trip from {hm(t.planned)}</span>{:else if t.reason}{plat ? ' · ' : ''}<span class="warn">{t.reason}</span>{/if}</span>
       </span>
       <span class="when">
         <span class="mins tabular" class:soon={mins <= 2 && t.status !== 'cancelled'}>{t.status === 'cancelled' ? '' : mins <= 0 ? 'now' : mins < 60 ? `${mins}′` : ''}</span>
@@ -117,6 +128,7 @@
   .mins { font: 750 17px var(--display); letter-spacing: -.02em; }
   .mins.soon { color: var(--accent); }
   .warn { color: var(--warn); }
+  .rep { color: var(--warn); font-weight: 600; }
   .skel { height: 56px; margin-top: 10px; border-radius: 14px; background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 50%, var(--surface) 100%); background-size: 200% 100%; animation: sh 1.2s infinite; }
   @keyframes sh { to { background-position: -200% 0; } }
 </style>

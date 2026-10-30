@@ -8,6 +8,7 @@
   import TimeBadge from './TimeBadge.svelte'
   import LineBadge from './LineBadge.svelte'
   import LegStrip from './LegStrip.svelte'
+  import { lineKey, replacedToday, replacementSpan } from '../lib/network.svelte'
 
   const a = $derived(app.selected!)
   const it = $derived(a.it)
@@ -56,6 +57,9 @@
 
   /** Only connections that won't work are worth interrupting for. */
   const failing = $derived(new Map(a.transfers.filter(t => t.level === 'missed').map(t => [t.toIndex, t])))
+  /** Trams on this trip that are (partly) replaced by buses today, per the VRS timetable. */
+  const replaced = $derived([...new Map(it.legs.filter(l => isTransit(l) && l.mode === 'TRAM')
+    .map(l => [lineName(l), replacedToday(lineName(l))] as const).filter(([, r]) => r)).entries()])
   const startsIn = $derived(minutesUntil(checkLeg(it.legs[0]).dep.time, now))
   const cancelledLegs = $derived(it.legs.filter(l => isTransit(l) && (l.cancelled || l.from.cancelled || l.to.cancelled || (l.tripId && app.db[l.tripId]?.cancelled))))
 </script>
@@ -80,6 +84,12 @@
 {/if}
 {#each a.confidence.broken as b}
   <div class="banner bad"><b>Don't rely on this.</b> {b}</div>
+{/each}
+{#each replaced as [tram, rep] (tram)}
+  <div class="banner warn">
+    <b>Tram {tram} is partly replaced by buses today</b> ({rep!.name}: {replacementSpan(rep!)}). Trams on that stretch may not run; check the departure board.
+    <button class="link" onclick={() => { app.line = { key: lineKey(rep!), dir: rep!.patterns[0].dir }; go('line') }}>See {rep!.name}</button>
+  </div>
 {/each}
 {#each cancelledLegs as l (l.tripId)}
   <div class="banner bad"><b>{lineName(l)}</b> to {l.headsign} is cancelled. <button class="link" onclick={replanFromHere}>Re-plan</button></div>

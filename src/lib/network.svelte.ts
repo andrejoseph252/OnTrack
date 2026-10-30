@@ -26,6 +26,8 @@ export type NetStop = [string, string, number, number]
 export const net = $state({
   lines: [] as Line[],
   stops: [] as NetStop[],
+  /** Tram line ("61") → days (YYYYMMDD, Berlin) when replacement buses ("BE61") run. */
+  replacements: {} as Record<string, string[]>,
   status: 'idle' as 'idle' | 'loading' | 'ready' | 'error',
 })
 
@@ -40,6 +42,7 @@ export function loadNetwork() {
       const d = await r.json()
       net.lines = d.lines
       net.stops = d.stops
+      net.replacements = d.replacements ?? {}
       net.status = 'ready'
     } catch {
       net.status = 'error'
@@ -55,7 +58,9 @@ export const lineColor = (l: Line) => `#${l.color ?? FALLBACK[l.type]}`
 export const lineText = (l: Line) => readableOn(lineColor(l))
 export const lineKey = (l: Line) => `${l.name}|${l.type}`
 /** Rail replacement buses carry the train's name (e.g. "RB26"); mark them. */
-export const isReplacement = (l: Line) => /SEV/.test(l.operator)
+export const isReplacement = (l: Line) => /SEV/.test(l.operator) || /^BE\d+$/.test(l.name)
+/** Tram replacement buses ("BE61" = Bus-Ersatz for tram 61). */
+export const isTramReplacement = (l: Line) => /^BE\d+$/.test(l.name)
 /** Bonn's own city network, drawn prominently on the network map. */
 export const isCity = (l: Line) => /Stadtwerke Bonn/.test(l.operator) || l.type === 'tram'
 
@@ -71,4 +76,18 @@ export function findLine(name: string | undefined, mode: string): Line | undefin
   if (!name) return undefined
   const type: Line['type'] = mode === 'BUS' || mode === 'COACH' ? 'bus' : mode === 'TRAM' || mode === 'SUBWAY' || mode === 'METRO' ? 'tram' : mode === 'FERRY' ? 'ferry' : 'rail'
   return net.lines.find(l => l.name === name && l.type === type && !isReplacement(l)) ?? net.lines.find(l => l.name === name && l.type === type)
+}
+
+/** The replacement-bus line ("BE61") if tram `line` is (partly) replaced by buses today. */
+export function replacedToday(line: string | undefined): Line | undefined {
+  if (!line) return undefined
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date()).replace(/-/g, '')
+  if (!net.replacements[line]?.includes(today)) return undefined
+  return net.lines.find(l => l.name === `BE${line}`)
+}
+
+/** "Kopenhagener Str. ↔ Stadthaus" for a replacement line, from its two directions. */
+export function replacementSpan(l: Line) {
+  const p = l.patterns
+  return p.length > 1 ? `${p[1].headsign} ↔ ${p[0].headsign}` : p[0]?.headsign ?? ''
 }

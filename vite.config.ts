@@ -39,6 +39,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,json,png}'],
+        // Changes daily and is only needed on departure boards: fetch fresh, don't precache.
+        globIgnores: ['**/data/replacements.json'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // Live data must never come from a cache; map tiles may.
         runtimeCaching: [

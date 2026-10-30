@@ -1,11 +1,14 @@
 <script lang="ts">
   import { app, back, go } from '../lib/state.svelte'
-  import { lineColor, lineKey, lineText, net } from '../lib/network.svelte'
+  import { isTramReplacement, lineColor, lineKey, lineText, net, replacedToday, replacementSpan } from '../lib/network.svelte'
 
   const line = $derived(app.line ? net.lines.find(l => lineKey(l) === app.line!.key) : undefined)
   const pattern = $derived(line ? line.patterns.find(p => p.dir === app.line!.dir) ?? line.patterns[0] : undefined)
   const stops = $derived(pattern ? pattern.stops.map(i => net.stops[i]) : [])
   const color = $derived(line ? lineColor(line) : '#888')
+  const rep = $derived(line?.type === 'tram' ? replacedToday(line.name) : undefined)
+  /** For a replacement-bus line: the days it runs (next weeks), e.g. "Fri 30 Oct, Sat 31 Oct". */
+  const repDays = $derived(line && isTramReplacement(line) ? (net.replacements[line.name.slice(2)] ?? []).map(d => new Date(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })) : [])
 
   // "Bonn Hauptbahnhof" → city de-emphasised, so long lists scan by stop name.
   const split = (name: string) => {
@@ -30,6 +33,16 @@
       <div class="sub">{line.operator}</div>
     </div>
   </div>
+
+  {#if rep}
+    <div class="banner warn">
+      <b>Partly replaced by buses today</b>: {rep.name}, {replacementSpan(rep)}
+      <button class="link" onclick={() => (app.line = { key: lineKey(rep), dir: rep.patterns[0].dir })}>See {rep.name}</button>
+    </div>
+  {/if}
+  {#if line && isTramReplacement(line)}
+    <div class="banner info">{repDays.length ? `Runs on: ${repDays.join(', ')}` : 'No replacement service planned in the next four weeks.'}</div>
+  {/if}
 
   {#if line.patterns.length > 1}
     <div class="dirs" role="tablist" aria-label="Direction">
@@ -71,6 +84,7 @@
   .dirs button[aria-selected='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
   .to { font-weight: 500; font-size: 12px; display: block; color: var(--muted); }
   .meta { margin: 12px 2px 6px; }
+  .banner { margin-top: 12px; }
   .stops { list-style: none; margin: 0; padding: 0; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
   .stops li { position: relative; }
   /* The coloured line runs through the dots like a transit diagram. */
