@@ -3,7 +3,7 @@ import type { Itinerary, Mode } from './api/types'
 import { checkLeg, isTransit, itineraryConfidence, type Confidence } from './realtime'
 import { analyseTransfers, worstRisk, type RiskLevel, type Transfer } from './transfer'
 import { load, save } from './storage'
-import { checkDeparture, type DbCheck } from './api/db'
+import { checkRail, type DbCheck } from './api/db'
 
 export interface Loc {
   name: string
@@ -33,17 +33,35 @@ export interface Annotated {
   confidence: Confidence
   transfers: Transfer[]
   risk: RiskLevel
+  /** Timetabled connection offered because live data for one of its lines is broken. */
+  fallback?: string[]
 }
 
-export function annotate(it: Itinerary): Annotated {
+export function annotate(it: Itinerary, fallback?: string[]): Annotated {
   const transfers = analyseTransfers(it)
-  return { it, confidence: itineraryConfidence(it), transfers, risk: worstRisk(transfers) }
+  return { it, confidence: itineraryConfidence(it), transfers, risk: worstRisk(transfers), fallback }
+}
+
+/**
+ * When the live feed attaches a vehicle to the wrong trip, the real trip vanishes
+ * from live results (seen: the 14:47 bus 606 replaced by a ghost 607). Offer the
+ * timetabled trips of affected lines, labelled, rather than hiding them.
+ */
+export function timetableFallback(live: Itinerary[], broken: Annotated[], scheduled: Itinerary[]): Annotated[] {
+  const brokenLines = new Set(broken.flatMap(a => a.it.legs.filter(isTransit).map(l => l.routeShortName)))
+  const liveTrips = new Set(live.flatMap(i => i.legs.map(l => l.tripId)).filter(Boolean))
+  const liveKeys = new Set(live.map(tripKey))
+  const now = Date.now()
+  return scheduled
+    .filter(i => !liveKeys.has(tripKey(i)) && new Date(i.startTime).getTime() > now - 60000)
+    .filter(i => i.legs.some(l => isTransit(l) && brokenLines.has(l.routeShortName) && !liveTrips.has(l.tripId)))
+    .map(i => annotate(i, [...new Set(i.legs.filter(l => isTransit(l) && brokenLines.has(l.routeShortName)).map(l => l.routeShortName!))]))
 }
 
 const tripKey = (it: Itinerary) => it.legs.filter(isTransit).map(l => l.tripId).join('>')
 
 export const app = $state({
-  view: 'search' as 'search' | 'trip' | 'stop' | 'places',
+  view: 'search' as 'search' | 'trip' | 'stop' | 'places' | 'settings',
   from: null as Loc | null, // null = current location
   to: null as Loc | null,
   timeMode: 'now' as TimeMode,
@@ -60,7 +78,9 @@ export const app = $state({
   selected: null as Annotated | null,
   selectedStale: false,
   updatedAt: null as Date | null,
+  /** DB Timetables cross-checks per tripId: departure and arrival end of the leg. */
   db: {} as Record<string, DbCheck | null>,
+  dbArr: {} as Record<string, DbCheck | null>,
   stop: null as { id: string; name: string } | null,
   backups: {} as Record<number, Annotated[] | 'loading' | 'none'>,
 })
@@ -124,12 +144,18 @@ export async function search() {
     const time = app.timeMode === 'now' || !app.time ? undefined : new Date(app.time)
     const q = options(from, app.to, time, app.timeMode === 'arrive')
     app.lastQuery = q
-    const r = await plan(q, ctrl.signal)
+    // The timetable-only query runs alongside, so the fallback costs no extra wait.
+    const [r, sched] = await Promise.all([
+      plan(q, ctrl.signal),
+      plan({ ...q, realtimeMode: 'OFF' }, ctrl.signal).catch(() => null),
+    ])
     // A walk-only route (e.g. 600 m to uni) can beat any connection; show it too.
     const all = [...r.itineraries, ...r.direct.filter(d => d.duration < 45 * 60)]
-    const annotated = all.map(annotate)
-    app.results = sortResults(annotated.filter(a => !a.confidence.broken.length))
+    const annotated = all.map(i => annotate(i))
+    const ok = annotated.filter(a => !a.confidence.broken.length)
     app.hidden = annotated.filter(a => a.confidence.broken.length)
+    const extra = app.hidden.length && sched ? timetableFallback(r.itineraries, app.hidden, sched.itineraries) : []
+    app.results = sortResults([...ok, ...extra])
     app.nextCursor = r.nextPageCursor
     app.updatedAt = new Date()
     if (!all.length) app.error = 'No connections found. Try a different time or turn off filters.'
@@ -146,7 +172,7 @@ export async function loadLater() {
   try {
     const r = await plan({ ...app.lastQuery, pageCursor: app.nextCursor })
     const seen = new Set([...app.results, ...app.hidden].map(a => tripKey(a.it)))
-    const fresh = r.itineraries.filter(i => !seen.has(tripKey(i))).map(annotate)
+    const fresh = r.itineraries.filter(i => !seen.has(tripKey(i))).map(i => annotate(i))
     app.results = [...app.results, ...fresh.filter(a => !a.confidence.broken.length)]
     app.hidden = [...app.hidden, ...fresh.filter(a => a.confidence.broken.length)]
     app.nextCursor = r.nextPageCursor
@@ -173,12 +199,12 @@ export async function refreshSelected() {
   if (!sel || !q) return
   const start = new Date(new Date(sel.it.startTime).getTime() - 2 * 60000)
   try {
-    const r = await plan({ ...q, time: start, arriveBy: false, pageCursor: undefined, numItineraries: 8 })
+    const r = await plan({ ...q, time: start, arriveBy: false, pageCursor: undefined, numItineraries: 8, realtimeMode: sel.fallback ? 'OFF' : 'REALTIME' })
     const key = tripKey(sel.it)
     const same = r.itineraries.find(i => tripKey(i) === key)
     if (app.selected !== sel) return
     if (same) {
-      app.selected = annotate(same)
+      app.selected = annotate(same, sel.fallback)
       app.selectedStale = false
     } else {
       app.selectedStale = true
@@ -193,8 +219,9 @@ export async function refreshSelected() {
 async function crossCheckWithDb(it: Itinerary) {
   await Promise.all(it.legs.filter(isTransit).map(async leg => {
     if (!leg.tripId) return
-    const r = await checkDeparture(leg)
-    app.db[leg.tripId] = r
+    const [dep, arr] = await Promise.all([checkRail(leg, 'dp'), checkRail(leg, 'ar')])
+    app.db[leg.tripId] = dep
+    app.dbArr[leg.tripId] = arr
   }))
 }
 
@@ -209,7 +236,7 @@ export async function findBackup(t: Transfer) {
     const r = await plan(options({ name: at.name, lat: at.lat, lon: at.lon, stopId: at.stopId }, app.to, new Date(missedDep.getTime() + 60000), false))
     const alts = r.itineraries
       .filter(i => i.legs.find(isTransit)?.tripId !== t.departing.tripId)
-      .map(annotate)
+      .map(i => annotate(i))
       .filter(a => !a.confidence.broken.length && a.risk !== 'missed')
       .slice(0, 2)
     if (app.selected === sel) app.backups[t.toIndex] = alts.length ? alts : 'none'

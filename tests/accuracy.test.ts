@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { checkTime, dedupeStopTimes, itineraryConfidence } from '../src/lib/realtime'
 import { analyseTransfers } from '../src/lib/transfer'
 import { decodePolyline, headingAlong } from '../src/lib/geo'
@@ -148,5 +148,60 @@ describe('platform labels', () => {
     expect(lineName({ mode: 'LONG_DISTANCE', routeShortName: '55', displayName: 'IC 1645' })).toBe('IC 1645')
     expect(lineName({ mode: 'REGIONAL_RAIL', routeShortName: 'RB48', displayName: 'RB48 (17346)' })).toBe('RB48')
     expect(lineName({ mode: 'BUS', routeShortName: '602', displayName: '602' })).toBe('602')
+  })
+})
+
+import fallbackFixture from './fixtures/bonn-fallback.json'
+import { annotate, timetableFallback } from '../src/lib/state.svelte'
+
+describe('timetable fallback (real Bonn responses, 30 Oct 2026)', () => {
+  const live = (fallbackFixture.live as unknown as PlanResponse).itineraries
+  const off = (fallbackFixture.off as unknown as PlanResponse).itineraries
+  vi.setSystemTime(new Date('2026-10-30T13:31:00Z'))
+  const broken = live.map(i => annotate(i)).filter(a => a.confidence.broken.length)
+  const extra = timetableFallback(live, broken, off)
+  vi.useRealTimers()
+
+  it('finds the ghost 607 and 606 in live data', () => {
+    expect(broken.map(a => a.it.legs.find(l => l.mode !== 'WALK')!.routeShortName).sort()).toEqual(['606', '607'])
+  })
+  it('brings back the timetabled 606 that vanished from live results', () => {
+    expect(extra).toHaveLength(1)
+    expect(extra[0].fallback).toEqual(['606'])
+    expect(extra[0].it.legs.find(l => l.mode !== 'WALK')!.from.scheduledDeparture).toBe('2026-10-30T13:47:00Z')
+  })
+  it('does not duplicate trips that live data still has (607 at 13:54) or lines with healthy data (603)', () => {
+    const lines = extra.flatMap(a => a.it.legs.filter(l => l.mode !== 'WALK').map(l => l.routeShortName))
+    expect(lines).not.toContain('603')
+    expect(lines).not.toContain('607')
+  })
+})
+
+import { nameVariants, parseDbTime, parseStops, toDbTime, trainNumber } from '../src/lib/api/db'
+
+describe('DB Timetables parsing', () => {
+  const plan = `<timetable station="Bonn Hbf"><s id="-123-2610301448-6"><tl f="F" t="p" o="80" c="IC" n="1645"/><ar pt="2610301446" pp="1"/><dp pt="2610301448" pp="1" ppth="Köln Hbf"/></s><s id="x-1"><tl c="RE" n="28520"/><dp pt="2610301505" pp="2" l="5"/></s></timetable>`
+  const fchg = `<timetable><s id="-123-2610301448-6" eva="8000044"><dp ct="2610301452" cp="3"><m t="d" c="43"/></dp></s></timetable>`
+
+  it('parses stops, train labels and change attributes', () => {
+    const [ic, re] = parseStops(plan)
+    expect(ic.tl).toMatchObject({ c: 'IC', n: '1645' })
+    expect(ic.dp).toMatchObject({ pt: '2610301448', pp: '1' })
+    expect(re.dp?.l).toBe('5')
+    const [ch] = parseStops(fchg)
+    expect(ch.dp).toMatchObject({ ct: '2610301452', cp: '3' })
+    expect(ch.messages[0]).toMatchObject({ t: 'd', c: '43' })
+  })
+  it('converts Berlin times both ways, across DST', () => {
+    expect(parseDbTime('2610301448')!.toISOString()).toBe('2026-10-30T13:48:00.000Z') // CET
+    expect(parseDbTime('2607011200')!.toISOString()).toBe('2026-07-01T10:00:00.000Z') // CEST
+    expect(toDbTime(new Date('2026-10-30T13:48:00Z'))).toBe('2610301448')
+  })
+  it('extracts train numbers from Transitous names', () => {
+    expect(trainNumber({ displayName: 'RE5 (28520)', tripShortName: '028520' })).toBe('28520')
+    expect(trainNumber({ displayName: 'IC 1645', tripShortName: 'IC 1645' })).toBe('1645')
+  })
+  it('tries DB spellings of DELFI station names', () => {
+    expect(nameVariants('Bonn Beuel Bf')).toContain('Bonn-Beuel')
   })
 })

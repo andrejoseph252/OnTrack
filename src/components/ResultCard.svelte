@@ -46,7 +46,9 @@
     {#if a.risk === 'missed'}<span class="flag bad">Connection likely not possible</span>
     {:else if a.risk === 'risky'}<span class="flag bad">Risky transfer</span>
     {:else if a.risk === 'tight'}<span class="flag warn">Tight transfer</span>{/if}
-    {#if c.transitLegs}
+    {#if a.fallback}
+      <span class="flag warn">Timetable only: live data for {a.fallback.join(', ')} is unreliable</span>
+    {:else if c.transitLegs}
       {#if c.unverified}<span class="flag warn">{c.unverified} time{c.unverified > 1 ? 's' : ''} uncertain</span>
       {:else if c.live === c.transitLegs}<span class="flag ok">All live</span>
       {:else if c.live === 0}<span class="flag">Timetable only</span>

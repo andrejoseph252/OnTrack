@@ -79,6 +79,11 @@
     {#if app.selectedStale}
       <div class="banner bad">This exact connection no longer appears in live results, so it may be cancelled or changed. <button class="link" onclick={replanFromHere}>See what you can still catch</button></div>
     {/if}
+    {#if a.fallback}
+      <div class="banner warn">
+        <b>Timetable times only.</b> Live data for line {a.fallback.join(', ')} is currently mismatched in the feed, so this trip's real-time position is unknown. Allow extra time, and check the display at the stop.
+      </div>
+    {/if}
     {#each a.confidence.broken as b}
       <div class="banner bad"><b>Don't rely on this connection.</b> {b} <button class="link" onclick={replanFromHere}>Re-plan</button></div>
     {/each}
@@ -142,6 +147,7 @@
           {@const c = lineColors(leg)}
           {@const t = checkLeg(leg)}
           {@const db = leg.tripId ? app.db[leg.tripId] : null}
+          {@const dbArr = leg.tripId ? app.dbArr[leg.tripId] : null}
           {@const d = direction(leg, i)}
           {@const plat = platformLabel(leg.from, leg.mode)}
           <li class="ride" style:--c={c.bg}>
@@ -153,8 +159,8 @@
               </div>
 
               <button class="where" onclick={() => (focus = i)}>
-                {#if db?.platform && db.platform !== leg.from.track && plausibleTrack(db.plannedPlatform ?? undefined)}
-                  <span class="plat changed">Platform {db.platform} <small>(changed from {db.plannedPlatform ?? leg.from.track})</small></span>
+                {#if db?.platform && db.plannedPlatform && db.platform !== db.plannedPlatform}
+                  <span class="plat changed">Platform {db.platform} <small>(changed from {db.plannedPlatform})</small></span>
                 {:else if db?.platform}
                   <span class="plat">Platform {db.platform}</span>
                 {:else if plat && leg.from.scheduledTrack && leg.from.track !== leg.from.scheduledTrack && plausibleTrack(leg.from.scheduledTrack)}
@@ -196,8 +202,8 @@
               {/if}
 
               <div class="stoprow">
-                <TimeBadge t={t.arr} />
-                <span>Get off at <b>{leg.to.name}</b>{#if platformLabel(leg.to, leg.mode)}<span class="muted small gap">{platformLabel(leg.to, leg.mode)}</span>{/if}</span>
+                <TimeBadge t={t.arr} db={dbArr} />
+                <span>Get off at <b>{leg.to.name}</b>{#if dbArr?.platform}<span class="small gap" class:chg={dbArr.plannedPlatform && dbArr.platform !== dbArr.plannedPlatform}>Platform {dbArr.platform}</span>{:else if platformLabel(leg.to, leg.mode)}<span class="muted small gap">{platformLabel(leg.to, leg.mode)}</span>{/if}</span>
               </div>
               {#if t.arr.reason}<div class="banner warn small">{t.arr.reason}</div>{/if}
             </div>
@@ -243,6 +249,7 @@
   .plat { font-weight: 700; font-size: 15px; }
   .goal .plat { margin-left: 6px; font-size: 14px; }
   .gap { margin-left: 6px; }
+  .chg { color: var(--bad); font-weight: 650; }
   .plat.changed { color: var(--bad); }
   .plat.unknown { color: var(--warn); font-weight: 600; font-size: 14px; }
   .plat small { font-weight: 500; }

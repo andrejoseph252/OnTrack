@@ -43,6 +43,8 @@ export interface PlanOptions {
   pageCursor?: string
   /** Extra buffer (minutes) added to every transfer. */
   additionalTransferTime?: number
+  /** 'OFF' = timetable only, used when live data for a line is broken. */
+  realtimeMode?: 'REALTIME' | 'OFF'
 }
 
 export function plan(o: PlanOptions, signal?: AbortSignal) {
@@ -58,6 +60,7 @@ export function plan(o: PlanOptions, signal?: AbortSignal) {
     additionalTransferTime: o.additionalTransferTime,
     numItineraries: o.numItineraries ?? 5,
     pageCursor: o.pageCursor,
+    realtimeMode: o.realtimeMode === 'OFF' ? 'OFF' : undefined,
     language: 'de',
   }, signal)
 }

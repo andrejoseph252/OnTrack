@@ -6,6 +6,7 @@
   import TripView from './components/TripView.svelte'
   import Departures from './components/Departures.svelte'
   import Places from './components/Places.svelte'
+  import Settings from './components/Settings.svelte'
 
   const FILTERS: { key: keyof Filters; label: string; hint: string }[] = [
     { key: 'dticket', label: 'Deutschlandticket', hint: 'No ICE, IC, EC, FlixTrain or coaches' },
@@ -43,7 +44,7 @@
   })
   addEventListener('popstate', () => {
     const v = location.hash.slice(1)
-    app.view = v === 'trip' && app.selected ? 'trip' : v === 'stop' && app.stop ? 'stop' : v === 'places' ? 'places' : 'search'
+    app.view = v === 'trip' && app.selected ? 'trip' : v === 'stop' && app.stop ? 'stop' : v === 'places' ? 'places' : v === 'settings' ? 'settings' : 'search'
   })
 </script>
 
@@ -53,11 +54,16 @@
   <Departures />
 {:else if app.view === 'places'}
   <Places />
+{:else if app.view === 'settings'}
+  <Settings />
 {:else}
   <main>
     <header>
       <h1><span class="logo">●</span> OnTrack</h1>
-      <button class="chip" onclick={() => (app.view = 'places')}>★ My places</button>
+      <div class="row">
+        <button class="chip" onclick={() => (app.view = 'places')}>★ My places</button>
+        <button class="chip" onclick={() => (app.view = 'settings')} aria-label="Settings">⚙</button>
+      </div>
     </header>
 
     <section class="card planner">
@@ -127,7 +133,7 @@
     </section>
 
     <footer class="small muted">
-      Routing &amp; live data: <a href="https://transitous.org" target="_blank" rel="noreferrer">Transitous</a> (DELFI, OpenStreetMap). Stop and platform names: Datenquelle VRS, ohne Gewähr. DB cross-check when available. Map © OpenFreeMap, OpenStreetMap.
+      Routing &amp; live data: <a href="https://transitous.org" target="_blank" rel="noreferrer">Transitous</a> (DELFI, OpenStreetMap). Stop and platform names: Datenquelle VRS, ohne Gewähr. Train data: DB Timetables API (when keys are set in ⚙). Map © OpenFreeMap, OpenStreetMap.
     </footer>
   </main>
 {/if}
