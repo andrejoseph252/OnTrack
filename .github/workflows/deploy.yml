@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  # Commits made by the weekly data refresh don't trigger 'push' (GitHub blocks
+  # workflow-to-workflow pushes), so redeploy when that workflow finishes.
+  workflow_run:
+    workflows: ['Refresh VRS stop and line data']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
