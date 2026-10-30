@@ -59,6 +59,8 @@ export function plan(o: PlanOptions, signal?: AbortSignal) {
     useRoutedTransfers: o.wheelchair ? true : undefined,
     additionalTransferTime: o.additionalTransferTime,
     numItineraries: o.numItineraries ?? 5,
+    // Walking-only routes default to a 30 min cap server-side; the app shows walks up to 45 min.
+    maxDirectTime: 45 * 60,
     pageCursor: o.pageCursor,
     realtimeMode: o.realtimeMode === 'OFF' ? 'OFF' : undefined,
     language: 'de',
