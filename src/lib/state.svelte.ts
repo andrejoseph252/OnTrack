@@ -34,34 +34,43 @@ export interface StopRef { id?: string; name: string; lat?: number; lon?: number
 export const ROOT_VIEWS: View[] = ['search', 'lines', 'places']
 const stack: View[] = []
 
-/** Navigate to a view, with a sensible sheet height for it. Sub-views get a history entry,
- *  so the phone's back gesture walks back through them. */
+/**
+ * Browser history only with a mouse (desktop back button). On touch devices the app keeps its
+ * own back stack: with no history entries iOS has no page to swipe back to, so the left-edge
+ * swipe is the app's own gesture (Sheet.svelte) in Safari and the home-screen app alike.
+ */
+const useHistory = typeof window !== 'undefined' && matchMedia('(pointer: fine)').matches
+
+/** Navigate to a view, with a sensible sheet height for it. */
 export function go(view: View, sheet?: Snap) {
   if (view !== app.view) {
     if (ROOT_VIEWS.includes(view)) {
       stack.length = 0
-      history.replaceState(null, '', location.pathname + location.search)
+      if (useHistory) history.replaceState(null, '', location.pathname + location.search)
     } else {
       stack.push(app.view)
-      history.pushState({ view }, '', `#${view}`)
+      if (useHistory) history.pushState({ view }, '', `#${view}`)
     }
     app.view = view
   }
   app.sheet = sheet ?? (app.sheet === 'peek' ? 'full' : app.sheet)
 }
 
+function popView() {
+  app.view = stack.pop() ?? 'search'
+  if (app.sheet === 'peek') app.sheet = 'full'
+}
+
 export function back() {
-  if (stack.length) history.back()
-  else go('search')
+  if (!stack.length) go('search')
+  else if (useHistory) history.back()
+  else popView()
 }
 
 if (typeof window !== 'undefined') {
   // State isn't restored across reloads, so never start on a sub-view.
   if (location.hash) history.replaceState(null, '', location.pathname + location.search)
-  addEventListener('popstate', () => {
-    app.view = stack.pop() ?? 'search'
-    if (app.sheet === 'peek') app.sheet = 'full'
-  })
+  if (useHistory) addEventListener('popstate', popView)
 }
 
 /** Everything the Deutschlandticket covers: all local transport and regional trains, no IC/ICE/EC/FlixTrain/coaches. */

@@ -89,9 +89,9 @@
       if (wide || e.touches.length !== 1) return
       if ((e.target as HTMLElement).closest('input, textarea, select')) { t = null; return }
       const p = e.touches[0]
-      // Swipe from the left edge goes back. Safari has its own edge gesture (driving our history
-      // entries), so this is only needed in the home-screen app, where iOS has none.
-      const edge = theme.standalone && p.clientX < 24 && !ROOT_VIEWS.includes(app.view)
+      // Swipe from the left edge goes back (the app adds no history entries on touch devices,
+      // so iOS's own back-swipe has nothing to do and this gesture runs everywhere).
+      const edge = p.clientX < 28 && !ROOT_VIEWS.includes(app.view)
       t = { x: p.clientX, y: p.clientY, h: heights[app.sheet], mode: edge ? 'edge' : 'undecided', lastY: p.clientY, lastT: e.timeStamp, v: 0 }
     }
 
