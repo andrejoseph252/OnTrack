@@ -27,7 +27,7 @@
 
   function open(l: Line) {
     app.line = { key: lineKey(l), dir: l.patterns[0].dir }
-    go('line', 'half')
+    go('line')
   }
 
   const ends = (l: Line) => {

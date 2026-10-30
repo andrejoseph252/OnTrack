@@ -5,6 +5,7 @@
   import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
   import { onDestroy, onMount } from 'svelte'
   import { app, go, openTrip } from '../lib/state.svelte'
+  import { theme } from '../lib/theme.svelte'
   import { decodePolyline, headingAlong, type LngLat } from '../lib/geo'
   import { isTransit } from '../lib/realtime'
   import { lineColors, lineName } from '../lib/lines'
@@ -19,7 +20,8 @@
   let ready = $state(false)
   let wide = $state(window.innerWidth >= 900)
 
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches
+  // App.svelte remounts the map when the theme changes, so this is read once per map.
+  const dark = theme.dark
   const STYLE = `https://tiles.openfreemap.org/styles/${dark ? 'dark' : 'positron'}`
   const BONN: [number, number] = [7.0982, 50.7374]
 
@@ -138,6 +140,15 @@
       : { top: 70, bottom: Math.min(app.sheetPx, window.innerHeight * 0.6) + 24, left: 36, right: 56 }
   }
 
+  /** Once the user pans, stop re-centring the idle map on Bonn. */
+  let userMoved = false
+  /** Centre Bonn in the part of the screen the sheet leaves visible. */
+  function centreHome(duration = 500) {
+    if (!map || userMoved) return
+    const covered = wide ? 0 : Math.min(app.sheetPx, window.innerHeight * 0.6)
+    map.easeTo({ center: BONN, zoom: 12.3, offset: wide ? [210, 0] : [0, -covered / 2], duration })
+  }
+
   let lastId = ''
   function draw(s: Scene | null) {
     if (!map) return
@@ -172,8 +183,8 @@
 
     map.on('load', () => {
       const m = map!
-      // Centre Bonn in the part of the screen the sheet leaves visible.
-      if (!wide) m.easeTo({ center: BONN, offset: [0, -app.sheetPx / 2], duration: 0 })
+      centreHome(0)
+      m.on('dragstart', () => (userMoved = true))
       m.addSource('routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       m.addSource('points', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       const solid: maplibregl.FilterSpecification = ['all', ['!', ['get', 'walk']], ['!', ['to-boolean', ['get', 'dashed']]]]
@@ -222,11 +233,13 @@
     if (ready) draw(s)
   })
 
-  // Keep the framed area visible when the sheet snaps to a new height.
+  // Keep the framed area (or Bonn, when idle) visible when the sheet snaps to a new height.
   $effect(() => {
     void app.sheet
     const s = scene
-    if (ready && s?.fit.length) setTimeout(() => fit(s.fit), 60)
+    if (!ready) return
+    if (s?.fit.length) setTimeout(() => fit(s.fit), 60)
+    else setTimeout(() => centreHome(), 60)
   })
 
   $effect(() => {

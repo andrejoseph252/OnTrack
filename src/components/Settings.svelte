@@ -1,6 +1,9 @@
 <script lang="ts">
   import { dbCreds, setDbCreds, testDbCreds } from '../lib/api/db'
   import { back } from '../lib/state.svelte'
+  import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte'
+
+  const THEMES: [ThemeChoice, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
 
   let clientId = $state(dbCreds()?.clientId ?? '')
   let apiKey = $state(dbCreds()?.apiKey ?? '')
@@ -42,6 +45,15 @@
   </div>
 
   <section class="card box">
+    <h2>Appearance</h2>
+    <div class="seg" role="radiogroup" aria-label="Theme">
+      {#each THEMES as [value, label]}
+        <button role="radio" aria-checked={theme.choice === value} onclick={() => setTheme(value)}>{label}</button>
+      {/each}
+    </div>
+  </section>
+
+  <section class="card box">
     <h2>DB train data</h2>
     <p class="small muted">
       Official DB Timetables API: train delays, platforms, platform changes and cancellations. Keys come from your app in the
@@ -56,6 +68,16 @@
     </div>
     {#if result}<div class="banner {result.ok ? 'ok' : 'warn'}">{result.text}</div>{/if}
   </section>
+
+  <section class="card box">
+    <h2>About &amp; data sources</h2>
+    <p class="small muted">
+      Routing and live data: <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous and its data sources</a>
+      (DELFI, © OpenStreetMap contributors). Stop names and line maps: Datenquelle VRS, ohne Gewähr. Train data: Deutsche Bahn
+      Timetables API. Map tiles © OpenFreeMap, OpenMapTiles, OpenStreetMap.
+    </p>
+    <p class="small muted"><a href="https://github.com/andrejoseph252/OnTrack" target="_blank" rel="noreferrer">Source code &amp; contact</a> · MIT licence</p>
+  </section>
 </div>
 
 <style>
@@ -66,6 +88,9 @@
   .box p { margin: 0; }
   .box a { color: var(--accent); }
   label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-  input { border: 0; background: var(--surface-2); border-radius: 10px; padding: 11px 12px; font-size: 15px; outline: none; font-family: ui-monospace, monospace; }
+  input { border: 0; background: var(--surface-2); border-radius: 10px; padding: 11px 12px; font-size: 16px; outline: none; font-family: ui-monospace, monospace; }
   .row { display: flex; gap: 8px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; }
+  .seg button { border: 0; background: none; padding: 9px; border-radius: 9px; font-weight: 600; color: var(--muted); }
+  .seg button[aria-checked='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
 </style>

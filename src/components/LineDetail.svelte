@@ -15,7 +15,7 @@
 
   function openStop(s: (typeof stops)[number]) {
     app.stop = { name: s[1], lat: s[2], lon: s[3], line: line?.name }
-    go('stop', 'half')
+    go('stop')
   }
 </script>
 
@@ -86,6 +86,6 @@
   .end .nm b { font-weight: 750; }
   .nm small { color: var(--muted); font-size: 12px; }
   .go { color: var(--accent); font-weight: 600; opacity: 0; transition: opacity .15s; }
-  .stops button:hover .go { opacity: 1; }
+  @media (hover: hover) { .stops button:hover .go { opacity: 1; } }
   p.small:last-child { margin-top: 10px; }
 </style>

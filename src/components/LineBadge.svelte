@@ -13,7 +13,7 @@
     // Show the direction this vehicle is going, if its headsign matches one.
     const p = headsign ? line.patterns.find(p => headsign.includes(p.headsign) || p.headsign.includes(headsign.replace(/^Bonn\s+/, ''))) : undefined
     app.line = { key: lineKey(line), dir: p?.dir ?? line.patterns[0].dir }
-    go('line', 'half')
+    go('line')
   }
 </script>
 

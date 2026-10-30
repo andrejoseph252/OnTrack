@@ -108,7 +108,8 @@
     display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
     background: none; border: 0; padding: 9px 8px; border-radius: 8px;
   }
-  .menu button:hover { background: var(--surface-2); }
+  .menu button:active { background: var(--surface-2); }
+  @media (hover: hover) { .menu button:hover { background: var(--surface-2); } }
   .menu small { display: block; font-size: 12px; }
   .ic { width: 22px; text-align: center; flex: none; }
   .pad { padding: 10px; }

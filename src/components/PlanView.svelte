@@ -40,8 +40,6 @@
   function pick(to: typeof app.to) {
     app.to = to
     if (to) {
-      // Results show on the map above the sheet.
-      app.sheet = 'half'
       editing = false
       search()
     }
@@ -116,7 +114,8 @@
     {#each [0, 1, 2] as i (i)}<div class="card skel"></div>{/each}
   {/if}
   {#each app.results as a, i (a.it.startTime + a.it.legs.map(l => l.tripId).join())}
-    <div role="presentation" onpointerenter={() => (app.preview = i)} onpointerleave={() => (app.preview = null)}>
+    <!-- Map preview on mouse hover only: on iOS a hover-triggered change eats the first tap. -->
+    <div role="presentation" onpointerenter={e => { if (e.pointerType === 'mouse') app.preview = i }} onpointerleave={e => { if (e.pointerType === 'mouse') app.preview = null }}>
       <ResultCard {a} onopen={() => openTrip(a)} />
     </div>
   {/each}
@@ -133,18 +132,11 @@
   {#if app.results.length && app.nextCursor}
     <button class="btn ghost later" disabled={app.loading} onclick={loadLater}>Later connections</button>
   {/if}
-  {#if !app.to && !app.results.length}
-    <div class="empty">
-      <div class="hero">Door to door, on time.</div>
-      <p class="muted">Search an address, a building or a stop. Pull the panel down to explore the map.</p>
-      {#if !app.places.length}<button class="btn ghost" onclick={() => go('places')}>Save home, uni, gym…</button>{/if}
-    </div>
+  {#if !app.to && !app.results.length && !app.places.length}
+    <button class="btn ghost addplaces" onclick={() => go('places')}>Save home, uni, gym…</button>
   {/if}
 </section>
 
-<footer class="small muted">
-  Routing &amp; live data: <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous and its data sources</a> (DELFI, © OpenStreetMap contributors). Stop names and line maps: Datenquelle VRS, ohne Gewähr. Train data: DB Timetables API. Map © OpenFreeMap. <a href="https://github.com/andrejoseph252/OnTrack" target="_blank" rel="noreferrer">Source code &amp; contact</a>.
-</footer>
 
 <style>
   .planner { position: relative; display: flex; gap: 6px; align-items: center; padding: 8px 8px 8px 4px; }
@@ -186,9 +178,5 @@
   @keyframes sh { to { background-position: -200% 0; } }
   .hiddenbtn { background: none; border: 1px dashed var(--surface-3); border-radius: 12px; padding: 11px; color: var(--muted); }
   .later { justify-self: center; }
-  .empty { text-align: center; padding: 22px 8px 6px; display: grid; gap: 6px; justify-items: center; }
-  .hero { font: 750 22px/1.2 var(--display); letter-spacing: -.02em; }
-  .empty p { margin: 0 0 8px; max-width: 30ch; }
-  footer { margin-top: 22px; line-height: 1.45; }
-  footer a { color: inherit; }
+  .addplaces { justify-self: start; }
 </style>

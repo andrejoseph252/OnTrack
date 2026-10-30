@@ -158,7 +158,7 @@
             <div class="body">
               <div class="stoprow">
                 <TimeBadge t={t.dep} {db} big />
-                <button class="stopname" onclick={() => { app.stop = { name: leg.from.name, lat: leg.from.lat, lon: leg.from.lon }; go('stop', 'half') }}>{leg.from.name}</button>
+                <button class="stopname" onclick={() => { app.stop = { name: leg.from.name, lat: leg.from.lat, lon: leg.from.lon }; go('stop') }}>{leg.from.name}</button>
               </div>
 
               <button class="where" onclick={() => showOnMap(i)}>

@@ -47,7 +47,7 @@ export function go(view: View, sheet?: Snap) {
     }
     app.view = view
   }
-  app.sheet = sheet ?? (app.sheet === 'peek' ? 'half' : app.sheet)
+  app.sheet = sheet ?? (app.sheet === 'peek' ? 'full' : app.sheet)
 }
 
 export function back() {
@@ -60,7 +60,7 @@ if (typeof window !== 'undefined') {
   if (location.hash) history.replaceState(null, '', location.pathname + location.search)
   addEventListener('popstate', () => {
     app.view = stack.pop() ?? 'search'
-    if (app.sheet === 'peek') app.sheet = 'half'
+    if (app.sheet === 'peek') app.sheet = 'full'
   })
 }
 
@@ -102,7 +102,7 @@ const tripKey = (it: Itinerary) => it.legs.filter(isTransit).map(l => l.tripId).
 export const app = $state({
   view: 'search' as View,
   /** Bottom-sheet position on phones; ignored on wide screens (side panel). */
-  sheet: 'half' as Snap,
+  sheet: 'full' as Snap,
   /** Visible height of the sheet in px, so the map can keep routes out from under it. */
   sheetPx: 0,
   /** Leg of the open trip to frame on the map. */
@@ -245,7 +245,7 @@ export function openTrip(a: Annotated) {
   app.selectedStale = false
   app.backups = {}
   app.tripFocus = null
-  go('trip', 'half')
+  go('trip')
   crossCheckWithDb(a.it).then(() => { if (app.selected === a) app.selected = annotate(a.it, a.fallback) })
   for (const t of a.transfers) if (t.level === 'risky' || t.level === 'missed') findBackup(t)
 }
@@ -320,6 +320,6 @@ export async function findBackup(t: Transfer) {
 export async function replanFromHere() {
   app.from = null
   app.timeMode = 'now'
-  go('search', 'half')
+  go('search')
   await search()
 }

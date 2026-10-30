@@ -1,130 +1,170 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte'
+  import { onMount, type Snippet } from 'svelte'
   import { app, type Snap } from '../lib/state.svelte'
 
   let { children }: { children: Snippet } = $props()
 
   let vh = $state(window.innerHeight)
   let wide = $state(window.innerWidth >= 900)
-  let drag = $state<{ startY: number; startH: number; h: number; lastY: number; lastT: number; v: number } | null>(null)
+  let safeTop = $state(0)
+  let dragH = $state<number | null>(null)
+  let sheet: HTMLElement
   let scroller: HTMLDivElement
+  let probe: HTMLDivElement
 
-  const PEEK = 112
-  const heights = $derived({ peek: PEEK, half: Math.round(vh * 0.52), full: vh - 56 })
-  const height = $derived(drag ? drag.h : heights[app.sheet])
+  const PEEK = 118
+  const heights = $derived({ peek: PEEK, half: Math.round(vh * 0.5), full: vh - safeTop - 10 })
+  const height = $derived(dragH ?? heights[app.sheet])
 
   // Tell the map how much of the screen the sheet covers.
   $effect(() => { app.sheetPx = wide ? 0 : height })
 
-  function onResize() {
+  function measure() {
     vh = window.innerHeight
     wide = window.innerWidth >= 900
+    safeTop = probe?.offsetHeight ?? 0
   }
 
-  // A press only becomes a drag after 8 px of movement, so taps on buttons still work.
-  let pending: { y: number; el: HTMLElement; id: number } | null = null
-
-  function start(e: PointerEvent, fromContent = false) {
-    if (wide) return
-    // From the content area, only take over when scrolled to top (pull down to collapse).
-    if (fromContent && scroller.scrollTop > 0) return
-    pending = { y: e.clientY, el: e.currentTarget as HTMLElement, id: e.pointerId }
-  }
-
-  function move(e: PointerEvent) {
-    if (pending && !drag) {
-      if (Math.abs(e.clientY - pending.y) < 8) return
-      drag = { startY: pending.y, startH: height, h: height, lastY: e.clientY, lastT: e.timeStamp, v: 0 }
-      pending.el.setPointerCapture(pending.id)
-    }
-    if (!drag) return
-    const dy = e.clientY - drag.startY
-    const dt = Math.max(1, e.timeStamp - drag.lastT)
-    drag.v = (e.clientY - drag.lastY) / dt
-    drag.lastY = e.clientY
-    drag.lastT = e.timeStamp
-    drag.h = Math.min(heights.full + 20, Math.max(PEEK - 30, drag.startH - dy))
-  }
-
-  let justDragged = false
-  function end() {
-    pending = null
-    if (!drag) return
-    justDragged = true
-    setTimeout(() => (justDragged = false), 50)
-    const { h, v } = drag
-    drag = null
+  function snapTo(h: number, v: number) {
     const order: Snap[] = ['peek', 'half', 'full']
-    // A flick moves one snap in its direction; otherwise snap to the nearest.
-    if (Math.abs(v) > 0.5) {
-      const nearestBelow = order.filter(s => heights[s] <= h).at(-1) ?? 'peek'
-      const nearestAbove = order.find(s => heights[s] >= h) ?? 'full'
-      app.sheet = v > 0 ? nearestBelow : nearestAbove
+    // A flick moves on in its direction; otherwise snap to the nearest position.
+    if (Math.abs(v) > 0.45) {
+      app.sheet = v > 0 ? order.filter(s => heights[s] < h - 4).at(-1) ?? 'peek' : order.find(s => heights[s] > h + 4) ?? 'full'
     } else {
       app.sheet = order.reduce((a, b) => (Math.abs(heights[b] - h) < Math.abs(heights[a] - h) ? b : a))
     }
   }
 
-  function toggle() {
-    app.sheet = app.sheet === 'peek' ? 'half' : app.sheet === 'half' ? 'full' : 'half'
+  /**
+   * Touch handling like a native sheet:
+   * - below full height, any vertical drag on the sheet moves it;
+   * - at full height, the content scrolls; pulling down while scrolled to the top moves the sheet;
+   * - horizontal swipes (chip rows) are left alone, and taps are never intercepted.
+   */
+  onMount(() => {
+    measure()
+    let t: { x: number; y: number; h: number; mode: 'undecided' | 'sheet' | 'native'; lastY: number; lastT: number; v: number } | null = null
+
+    const start = (e: TouchEvent) => {
+      if (wide || e.touches.length !== 1) return
+      if ((e.target as HTMLElement).closest('input, textarea, select')) { t = null; return }
+      const p = e.touches[0]
+      t = { x: p.clientX, y: p.clientY, h: heights[app.sheet], mode: 'undecided', lastY: p.clientY, lastT: e.timeStamp, v: 0 }
+    }
+
+    const move = (e: TouchEvent) => {
+      if (!t) return
+      const p = e.touches[0]
+      const dx = p.clientX - t.x, dy = p.clientY - t.y
+      if (t.mode === 'undecided') {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+        const fromHandle = (e.target as HTMLElement).closest('.grab')
+        if (!fromHandle && Math.abs(dx) > Math.abs(dy)) t.mode = 'native'
+        else if (fromHandle || app.sheet !== 'full') t.mode = 'sheet'
+        else t.mode = scroller.scrollTop <= 0 && dy > 0 ? 'sheet' : 'native'
+      }
+      if (t.mode !== 'sheet') return
+      e.preventDefault()
+      const dt = Math.max(1, e.timeStamp - t.lastT)
+      t.v = (p.clientY - t.lastY) / dt
+      t.lastY = p.clientY
+      t.lastT = e.timeStamp
+      // Rubber-band slightly beyond the ends.
+      const raw = t.h - dy
+      dragH = raw > heights.full ? heights.full + (raw - heights.full) * 0.25 : raw < PEEK ? PEEK - (PEEK - raw) * 0.25 : raw
+    }
+
+    const end = () => {
+      if (t?.mode === 'sheet' && dragH !== null) snapTo(dragH, t.v)
+      dragH = null
+      t = null
+    }
+
+    sheet.addEventListener('touchstart', start, { passive: true })
+    sheet.addEventListener('touchmove', move, { passive: false })
+    sheet.addEventListener('touchend', end)
+    sheet.addEventListener('touchcancel', end)
+    return () => {
+      sheet.removeEventListener('touchstart', start)
+      sheet.removeEventListener('touchmove', move)
+      sheet.removeEventListener('touchend', end)
+      sheet.removeEventListener('touchcancel', end)
+    }
+  })
+
+  // Mouse (desktop at phone width): drag the handle, or click it to toggle.
+  let mouse: { y: number; h: number } | null = null
+  function mouseDown(e: PointerEvent) {
+    if (e.pointerType !== 'mouse' || wide) return
+    mouse = { y: e.clientY, h: height }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
+  function mouseMove(e: PointerEvent) {
+    if (mouse) dragH = Math.max(PEEK, Math.min(heights.full, mouse.h - (e.clientY - mouse.y)))
+  }
+  function mouseUp(e: PointerEvent) {
+    if (!mouse) return
+    if (Math.abs(e.clientY - mouse.y) > 5 && dragH !== null) snapTo(dragH, 0)
+    else app.sheet = app.sheet === 'full' ? 'half' : 'full'
+    mouse = null
+    dragH = null
+  }
+
+  // Back to the top of the content whenever the view changes.
+  $effect(() => {
+    void app.view
+    if (scroller) scroller.scrollTop = 0
+  })
 </script>
 
-<svelte:window onresize={onResize} />
+<svelte:window onresize={measure} />
+<div class="probe" bind:this={probe} aria-hidden="true"></div>
 
 <section
   class="sheet"
   class:wide
-  class:dragging={!!drag}
+  class:dragging={dragH !== null}
+  bind:this={sheet}
   style:height={wide ? null : `${heights.full}px`}
   style:transform={wide ? null : `translateY(${heights.full - height}px)`}
   aria-label="Panel"
 >
   {#if !wide}
-    <button class="grab" onpointerdown={e => start(e)} onpointermove={move} onpointerup={end} onpointercancel={end} onclick={() => { if (!justDragged) toggle() }} aria-label="Resize panel">
+    <div class="grab" role="button" tabindex="0" aria-label="Resize panel"
+      onpointerdown={mouseDown} onpointermove={mouseMove} onpointerup={mouseUp}
+      onkeydown={e => { if (e.key === 'Enter' || e.key === ' ') app.sheet = app.sheet === 'full' ? 'half' : 'full' }}>
       <span></span>
-    </button>
+    </div>
   {/if}
-  <div
-    role="presentation"
-    class="content"
-    class:locked={!wide && app.sheet !== 'full'}
-    bind:this={scroller}
-    onpointerdown={e => { if (e.pointerType === 'touch' && app.sheet !== 'full') start(e, true) }}
-    onpointermove={move}
-    onpointerup={end}
-    onpointercancel={end}
-  >
+  <div class="content" class:locked={!wide && app.sheet !== 'full'} bind:this={scroller}>
     {@render children()}
   </div>
 </section>
 
 <style>
+  .probe { position: fixed; top: 0; left: 0; width: 0; height: env(safe-area-inset-top); pointer-events: none; visibility: hidden; }
   .sheet {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
     display: flex; flex-direction: column;
     background: var(--glass);
-    -webkit-backdrop-filter: blur(22px) saturate(1.6);
-    backdrop-filter: blur(22px) saturate(1.6);
-    border-radius: 24px 24px 0 0;
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    backdrop-filter: blur(24px) saturate(1.6);
+    border-radius: 26px 26px 0 0;
     box-shadow: var(--shadow-lg);
-    transition: transform .38s cubic-bezier(.2, .9, .25, 1);
+    transition: transform .42s cubic-bezier(.2, .9, .2, 1);
     will-change: transform;
     max-width: 640px; margin: 0 auto;
   }
   .sheet.dragging { transition: none; }
-  .grab {
-    flex: none; height: 26px; border: 0; background: none; padding: 0;
-    display: grid; place-items: center; touch-action: none; cursor: grab;
-  }
-  .grab span { width: 38px; height: 5px; border-radius: 3px; background: var(--surface-3); }
+  .grab { flex: none; height: 24px; display: grid; place-items: center; cursor: grab; touch-action: none; }
+  .grab span { width: 40px; height: 5px; border-radius: 3px; background: var(--surface-3); }
   .content {
     flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+    padding: 2px 16px calc(28px + env(safe-area-inset-bottom));
     -webkit-overflow-scrolling: touch;
   }
-  /* Below full height, vertical drags on content resize the sheet instead of scrolling. */
-  .content.locked { touch-action: pan-x; }
+  /* Below full height the sheet moves instead of the content scrolling. */
+  .content.locked { overflow-y: hidden; }
 
   .sheet.wide {
     top: 12px; bottom: 12px; left: 12px; right: auto; width: 420px; margin: 0;

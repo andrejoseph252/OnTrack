@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from './lib/state.svelte'
   import { loadNetwork } from './lib/network.svelte'
+  import { theme } from './lib/theme.svelte'
   import Sheet from './components/Sheet.svelte'
   import PlanView from './components/PlanView.svelte'
   import TripView from './components/TripView.svelte'
@@ -20,9 +21,11 @@
   {#await mapView}
     <div class="map-placeholder"></div>
   {:then M}
-    <M.default />
+    {#key theme.dark}<M.default />{/key}
   {/await}
 </div>
+<!-- The map runs under the status bar; this fade keeps the clock and battery readable. -->
+<div class="statusfade" class:dark={theme.dark} class:standalone={theme.standalone} aria-hidden="true"></div>
 
 <Sheet>
   {#key app.view}
@@ -48,6 +51,15 @@
 
 <style>
   .map-placeholder { position: fixed; inset: 0; background: var(--bg); }
+  .statusfade {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 5; pointer-events: none;
+    height: calc(env(safe-area-inset-top) + 28px);
+    /* In Safari the status text follows the theme, so fade from the page colour. */
+    background: linear-gradient(to bottom, var(--bg), color-mix(in srgb, var(--bg) 45%, transparent) 55%, transparent);
+  }
+  /* Home-screen app (black-translucent): iOS draws white status text, so fade to dark. */
+  .statusfade.standalone { background: linear-gradient(to bottom, rgb(0 0 0 / 45%), rgb(0 0 0 / 18%) 60%, transparent); }
+  .statusfade.standalone.dark { background: linear-gradient(to bottom, rgb(11 13 18 / 88%), rgb(11 13 18 / 35%) 60%, transparent); }
   .view { animation: in .22s ease-out; }
   @keyframes in { from { opacity: 0; transform: translateY(6px); } }
 </style>
