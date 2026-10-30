@@ -20,10 +20,10 @@
 <style>
   .strip { display: flex; gap: 3px; align-items: center; min-width: 0; }
   .seg {
-    min-width: 34px; border-radius: 7px; padding: 3px 6px; font-size: 12px; font-weight: 750;
+    min-width: 44px; flex-shrink: 0; border-radius: 7px; padding: 3px 6px; font-size: 12px; font-weight: 750;
     overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: center;
   }
   .seg.cancelled { opacity: .4; text-decoration: line-through; }
-  .walk { min-width: 20px; display: grid; place-items: center; height: 20px; background-image: radial-gradient(circle, var(--walk) 1.2px, transparent 1.6px); background-size: 6px 6px; background-position: center; background-repeat: repeat-x; }
+  .walk { min-width: 20px; flex-shrink: 1; display: grid; place-items: center; height: 20px; background-image: radial-gradient(circle, var(--walk) 1.2px, transparent 1.6px); background-size: 6px 6px; background-position: center; background-repeat: repeat-x; }
   .wk { width: 15px; height: 15px; padding: 1px; fill: none; stroke: var(--text-2); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; background: var(--surface); border-radius: 50%; }
 </style>

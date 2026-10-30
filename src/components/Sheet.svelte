@@ -10,6 +10,8 @@
   let dragH = $state<number | null>(null)
   /** Horizontal offset while swiping back from the left edge. */
   let edgeX = $state(0)
+  /** Snap without animating (used when a text field is focused). */
+  let instant = $state(false)
   let sheet: HTMLElement
   let scroller: HTMLDivElement
   let probe: HTMLDivElement
@@ -57,6 +59,25 @@
    */
   onMount(() => {
     measure()
+
+    // Typing: open the panel fully at once, before the keyboard arrives. Animating it while
+    // iOS scrolls the page to the focused field pushed the panel off-screen. Any scroll iOS
+    // adds anyway is undone; the fields sit at the top of the panel, above the keyboard.
+    const settle = () => { if (window.scrollY || document.documentElement.scrollTop) window.scrollTo(0, 0) }
+    const onFocusIn = (e: FocusEvent) => {
+      if (wide || !(e.target as HTMLElement).matches?.('input, textarea')) return
+      if (app.sheet !== 'full') {
+        instant = true
+        app.sheet = 'full'
+        requestAnimationFrame(() => requestAnimationFrame(() => (instant = false)))
+      }
+      for (const ms of [0, 60, 300, 600]) setTimeout(settle, ms)
+    }
+    const onFocusOut = () => { for (const ms of [0, 300]) setTimeout(settle, ms) }
+    sheet.addEventListener('focusin', onFocusIn)
+    sheet.addEventListener('focusout', onFocusOut)
+    window.visualViewport?.addEventListener('resize', settle)
+
     let t: { x: number; y: number; h: number; mode: 'undecided' | 'sheet' | 'native' | 'edge'; lastY: number; lastT: number; v: number } | null = null
 
     const start = (e: TouchEvent) => {
@@ -115,6 +136,9 @@
     sheet.addEventListener('touchend', end)
     sheet.addEventListener('touchcancel', end)
     return () => {
+      sheet.removeEventListener('focusin', onFocusIn)
+      sheet.removeEventListener('focusout', onFocusOut)
+      window.visualViewport?.removeEventListener('resize', settle)
       sheet.removeEventListener('touchstart', start)
       sheet.removeEventListener('touchmove', move)
       sheet.removeEventListener('touchend', end)
@@ -153,7 +177,7 @@
 <section
   class="sheet"
   class:wide
-  class:dragging={dragH !== null}
+  class:dragging={dragH !== null || instant}
   bind:this={sheet}
   style:height={wide ? null : `${heights.full}px`}
   style:--sheet-h={wide ? null : `${heights.full}px`}

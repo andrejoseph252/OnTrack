@@ -40,7 +40,7 @@
 
 <div class="search">
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-  <input type="search" placeholder="Find a line, e.g. 606 or Venusberg" bind:value={q} onfocus={() => (app.sheet = 'full')} />
+  <input type="search" placeholder="Find a line, e.g. 606 or Venusberg" bind:value={q} />
 </div>
 
 <div class="filters" role="group" aria-label="Type">

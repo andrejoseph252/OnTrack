@@ -2,6 +2,7 @@
   import { dbCreds, setDbCreds, testDbCreds } from '../lib/api/db'
   import { back } from '../lib/state.svelte'
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte'
+  import { prefs, setClock } from '../lib/prefs.svelte'
 
   const THEMES: [ThemeChoice, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
 
@@ -51,6 +52,10 @@
         <button role="radio" aria-checked={theme.choice === value} onclick={() => setTheme(value)}>{label}</button>
       {/each}
     </div>
+    <div class="seg two" role="radiogroup" aria-label="Clock">
+      <button role="radio" aria-checked={prefs.clock === '12'} onclick={() => setClock('12')}>12-hour · 3:45 PM</button>
+      <button role="radio" aria-checked={prefs.clock === '24'} onclick={() => setClock('24')}>24-hour · 15:45</button>
+    </div>
   </section>
 
   <section class="card box">
@@ -91,6 +96,7 @@
   input { border: 0; background: var(--surface-2); border-radius: 10px; padding: 11px 12px; font-size: 16px; outline: none; font-family: ui-monospace, monospace; }
   .row { display: flex; gap: 8px; }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; }
+  .seg.two { grid-template-columns: 1fr 1fr; }
   .seg button { border: 0; background: none; padding: 9px; border-radius: 9px; font-weight: 600; color: var(--muted); }
   .seg button[aria-checked='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
 </style>

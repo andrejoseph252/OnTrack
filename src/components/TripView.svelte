@@ -231,7 +231,7 @@
   .inter { list-style: none; margin: 0; padding: 0 0 0 4px; display: grid; gap: 3px; }
   .inter .tabular { display: inline-block; width: 42px; }
   .others-box { display: grid; gap: 6px; background: var(--surface-2); border-radius: 13px; padding: 10px; }
-  .opt { display: grid; grid-template-columns: 62px 1fr auto; align-items: center; gap: 8px; border: 0; background: var(--surface); border-radius: 10px; padding: 9px 10px; text-align: left; position: relative; }
+  .opt { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 8px; border: 0; background: var(--surface); border-radius: 10px; padding: 9px 10px; text-align: left; position: relative; }
   .opt:active { transform: scale(.99); }
   .opt.current { box-shadow: inset 0 0 0 2px var(--accent); }
   .ol { display: flex; gap: 4px; flex-wrap: wrap; }

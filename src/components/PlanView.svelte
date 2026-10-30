@@ -57,13 +57,12 @@
       <b>{app.from?.name ?? 'Current location'}</b>
       <b>{app.to?.name}</b>
     </span>
-    <span class="meta small">{app.timeMode === 'now' ? 'Now' : app.timeMode === 'depart' ? `Dep ${app.time.slice(11)}` : `Arr ${app.time.slice(11)}`}{activeFilters ? ` · ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}<span class="edit">Edit</span></span>
+    <span class="meta small">{app.timeMode === 'now' ? 'Now' : `${app.timeMode === 'depart' ? 'Dep' : 'Arr'} ${hm(new Date(app.time))}`}{activeFilters ? ` · ${activeFilters} filter${activeFilters > 1 ? 's' : ''}` : ''}<span class="edit">Edit</span></span>
   </button>
 {:else}
 <section class="planner card">
   <div class="rail" aria-hidden="true"><span class="o"></span><span class="dash"></span><span class="d"></span></div>
-  <!-- Typing needs room for suggestions and the keyboard. -->
-  <div class="fields" onfocusin={() => (app.sheet = 'full')}>
+  <div class="fields">
     <PlaceInput value={app.from} placeholder="Start" allowCurrent onpick={l => { app.from = l; if (app.to) search() }} />
     <div class="sep"></div>
     <PlaceInput value={app.to} placeholder="Where to?" onpick={pick} />

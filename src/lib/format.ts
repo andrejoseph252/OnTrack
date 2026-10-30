@@ -1,7 +1,11 @@
-const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
+import { prefs } from './prefs.svelte'
+
+const time24 = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
+const time12 = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Europe/Berlin' })
 const dayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Berlin' })
 
-export const hm = (d: Date | string) => timeFmt.format(typeof d === 'string' ? new Date(d) : d)
+/** Clock time in Berlin, 12- or 24-hour per Settings ("3:52 PM" / "15:52"). Reactive to the setting. */
+export const hm = (d: Date | string) => (prefs.clock === '12' ? time12 : time24).format(typeof d === 'string' ? new Date(d) : d)
 export const day = (d: Date) => dayFmt.format(d)
 
 export function duration(sec: number) {
