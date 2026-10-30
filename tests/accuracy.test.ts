@@ -234,3 +234,41 @@ describe('DB data overrides the free feed', () => {
     authoritative.delete('test-re5')
   })
 })
+
+import { solarElevation, dayPhase, BONN } from '../src/lib/sun'
+import { prepare, positions, type Segment } from '../src/lib/vehicles'
+import tripsFixture from './fixtures/bonn-trips.json'
+
+describe('sun', () => {
+  it('matches known elevations in Bonn', () => {
+    // Midsummer local noon ≈ 62.7°, midwinter ≈ 15.9° (latitude 50.74°).
+    expect(solarElevation(new Date('2026-06-21T11:30:00Z'), BONN.lat, BONN.lon)).toBeCloseTo(62.7, 0)
+    expect(solarElevation(new Date('2026-12-21T11:30:00Z'), BONN.lat, BONN.lon)).toBeCloseTo(15.9, 0)
+    expect(solarElevation(new Date('2026-12-21T23:00:00Z'), BONN.lat, BONN.lon)).toBeLessThan(-30)
+  })
+  it('classifies phases', () => {
+    expect([dayPhase(-10), dayPhase(-3), dayPhase(4), dayPhase(30)]).toEqual(['night', 'blue', 'golden', 'day'])
+  })
+})
+
+describe('vehicles (real Transitous segments, Bonn, 30 Oct 2026)', () => {
+  const segs = tripsFixture as unknown as Segment[]
+  const prepared = prepare(segs)
+  // Snapshot was taken at about 16:25 UTC; anchor the clock there (one flight departs hours earlier).
+  const t0 = new Date('2026-10-30T16:25:00Z').getTime()
+
+  it('positions vehicles on their segment polyline', () => {
+    const vs = positions(prepared, t0 + 30000)
+    expect(vs.length).toBeGreaterThan(20)
+    const tram66 = vs.find(v => v.line === '66')
+    expect(tram66).toBeTruthy()
+    const [lon, lat] = tram66!.at
+    expect(lat).toBeGreaterThan(50.6); expect(lat).toBeLessThan(50.9)
+    expect(lon).toBeGreaterThan(6.9); expect(lon).toBeLessThan(7.3)
+  })
+  it('moves vehicles forward over time', () => {
+    const a = positions(prepared, t0 + 20000), b = positions(prepared, t0 + 50000)
+    const moved = a.filter(v => { const w = b.find(x => x.tripId === v.tripId); return w && (w.at[0] !== v.at[0] || w.at[1] !== v.at[1]) })
+    expect(moved.length).toBeGreaterThan(5)
+  })
+})

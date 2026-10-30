@@ -11,6 +11,7 @@
   import Settings from './components/Settings.svelte'
   import LinesView from './components/LinesView.svelte'
   import LineDetail from './components/LineDetail.svelte'
+  import TimeTint from './components/TimeTint.svelte'
 
   // The map (MapLibre, ~300 kB) loads after first paint so the panel is usable at once.
   const mapView = import('./components/MapView.svelte')
@@ -25,6 +26,7 @@
     {#key `${theme.dark}:${prefs.mapStyle}`}<M.default />{/key}
   {/await}
 </div>
+<TimeTint />
 <!-- The map runs under the status bar; this fade keeps the clock and battery readable. -->
 <div class="statusfade" class:dark={theme.dark} class:standalone={theme.standalone} aria-hidden="true"></div>
 

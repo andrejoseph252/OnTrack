@@ -10,7 +10,10 @@
   import { decodePolyline, distance, headingAlong, type LngLat } from '../lib/geo'
   import { isTransit } from '../lib/realtime'
   import { lineColors, lineName } from '../lib/lines'
-  import { isCity, isReplacement, lineColor, lineKey, loadNetwork, net, patternPath } from '../lib/network.svelte'
+  import { findLine, isCity, isReplacement, lineColor, lineKey, loadNetwork, net, patternPath } from '../lib/network.svelte'
+  import { mapTrips } from '../lib/api/transitous'
+  import { positions, prepare, type Vehicle } from '../lib/vehicles'
+  import { readableOn } from '../lib/lines'
   import type { Itinerary } from '../lib/api/types'
 
   maplibregl.setWorkerUrl(workerUrl)
@@ -245,6 +248,18 @@
         layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-offset': [0.9, 0], 'text-anchor': 'left', 'text-optional': true },
         paint: { 'text-color': dark ? '#e8ebf0' : '#1d2330', 'text-halo-color': dark ? '#0b0d12' : '#ffffff', 'text-halo-width': 1.6 } })
 
+      // Vehicles: an SDF disc with a nose (pointing north), tinted per line and rotated to the heading.
+      m.addImage('veh', vehicleImage(), { sdf: true, pixelRatio: 2 })
+      m.addSource('vehicles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      m.addLayer({ id: 'vehicles', type: 'symbol', source: 'vehicles',
+        layout: { 'icon-image': 'veh', 'icon-rotate': ['get', 'bearing'], 'icon-rotation-alignment': 'map', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+          'icon-size': ['case', ['get', 'mine'], 1.3, 1], 'symbol-sort-key': ['case', ['get', 'mine'], 1, 0] },
+        paint: { 'icon-color': ['get', 'color'], 'icon-halo-color': '#ffffff', 'icon-halo-width': ['case', ['get', 'mine'], 2.5, 1.2],
+          'icon-opacity': ['case', ['get', 'live'], 1, 0.5] } })
+      m.addLayer({ id: 'vehicle-labels', type: 'symbol', source: 'vehicles', minzoom: 12.5,
+        layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': ['case', ['get', 'mine'], 11, 9.5], 'text-allow-overlap': true, 'text-ignore-placement': true },
+        paint: { 'text-color': ['get', 'fg'], 'text-opacity': ['case', ['get', 'live'], 1, 0.7] } })
+
       // Tap a result's route to open it; tap a line in the network to open that line.
       const onRoute = (e: maplibregl.MapLayerMouseEvent) => {
         const p = e.features?.[0]?.properties as RouteProps | undefined
@@ -299,6 +314,85 @@
       })
       return new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map!)
     }) : []
+  })
+
+  // ---- Vehicles (positions from live-adjusted timetables; see lib/vehicles.ts) ----
+  function vehicleImage() {
+    const size = 56, c = document.createElement('canvas')
+    c.width = c.height = size
+    const g = c.getContext('2d')!
+    g.fillStyle = '#000'
+    g.beginPath(); g.arc(28, 32, 15, 0, Math.PI * 2); g.fill()          // body
+    g.beginPath(); g.moveTo(28, 4); g.lineTo(39, 22); g.lineTo(17, 22); g.closePath(); g.fill() // nose (north)
+    return g.getImageData(0, 0, size, size)
+  }
+
+  let prepared: ReturnType<typeof prepare> = new Map()
+  let vehCtrl: AbortController | null = null
+  let lastFetch = 0
+
+  /** Which vehicles the current view wants: (line names, exact trip to highlight) or all. */
+  const vehicleFilter = $derived.by((): { lines: Set<string> | null; mine: Set<string>; on: boolean } => {
+    if (app.view === 'trip' && app.selected) {
+      const rides = app.selected.it.legs.filter(isTransit)
+      return { lines: new Set(rides.map(l => lineName(l))), mine: new Set(rides.map(l => l.tripId ?? '')), on: true }
+    }
+    if (app.view === 'line' && app.line) return { lines: new Set([app.line.key.split('|')[0]]), mine: new Set(), on: true }
+    if (app.view === 'lines' || app.view === 'stop') return { lines: null, mine: new Set(), on: true }
+    return { lines: null, mine: new Set(), on: false }
+  })
+
+  async function fetchVehicles() {
+    if (!map || !vehicleFilter.on || document.visibilityState !== 'visible' || map.getZoom() < 11) { prepared = new Map(); return }
+    const b = map.getBounds()
+    vehCtrl?.abort()
+    vehCtrl = new AbortController()
+    try {
+      const now = Date.now()
+      const segs = await mapTrips({ min: [b.getWest(), b.getSouth()], max: [b.getEast(), b.getNorth()], zoom: map.getZoom(), start: new Date(now - 60000), end: new Date(now + 3 * 60000) }, vehCtrl.signal)
+      prepared = prepare(segs)
+      lastFetch = Date.now()
+    } catch { /* aborted or offline: keep last */ }
+  }
+
+  function drawVehicles() {
+    if (!map || !ready) return
+    const src = map.getSource('vehicles') as maplibregl.GeoJSONSource | undefined
+    if (!src) return
+    const f = vehicleFilter
+    const vs: Vehicle[] = f.on ? positions(prepared, Date.now()) : []
+    const lineType = app.view === 'line' && app.line ? app.line.key.split('|')[1] : null
+    const typeOf = (m: string) => (m === 'BUS' || m === 'COACH' ? 'bus' : m === 'TRAM' || m === 'SUBWAY' || m === 'METRO' ? 'tram' : 'rail')
+    const shown = vs.filter(v =>
+      (!f.lines || f.lines.has(v.line)) &&
+      (!lineType || typeOf(v.mode) === lineType) &&
+      (app.view !== 'lines' || app.lineFilter === 'all' || typeOf(v.mode) === app.lineFilter))
+    src.setData({
+      type: 'FeatureCollection',
+      features: shown.map(v => {
+        // Official VRS line colour when known (the feed's route colours differ), else the feed's.
+        const known = findLine(v.line, v.mode)
+        const color = known ? lineColor(known) : v.color ? `#${v.color}` : lineColors({ mode: v.mode }).bg
+        return { type: 'Feature', geometry: { type: 'Point', coordinates: v.at }, properties: { bearing: v.bearing, color, fg: readableOn(color), label: v.line, live: v.live, mine: f.mine.has(v.tripId) } }
+      }),
+    } as never)
+  }
+
+  // Animate ~5×/s; refetch every 30 s and after the map moves.
+  let anim: ReturnType<typeof setInterval> | undefined
+  let moveTimer: ReturnType<typeof setTimeout> | undefined
+  $effect(() => {
+    if (!ready) return
+    void vehicleFilter
+    fetchVehicles().then(drawVehicles)
+    anim = setInterval(() => {
+      if (!vehicleFilter.on || document.visibilityState !== 'visible') return
+      if (Date.now() - lastFetch > 30000) fetchVehicles()
+      drawVehicles()
+    }, 250)
+    const onMove = () => { clearTimeout(moveTimer); moveTimer = setTimeout(() => fetchVehicles().then(drawVehicles), 400) }
+    map!.on('moveend', onMove)
+    return () => { clearInterval(anim); clearTimeout(moveTimer); map?.off('moveend', onMove) }
   })
 
   onDestroy(() => map?.remove())

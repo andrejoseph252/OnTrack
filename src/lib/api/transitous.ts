@@ -76,3 +76,15 @@ export function stopTimes(at: { id?: string; lat?: number; lon?: number }, opts:
     language: 'de',
   }, signal)
 }
+
+/** Trip segments (stop to stop, live-adjusted times) in a map area and time window: vehicles on the map. */
+export function mapTrips(o: { min: [number, number]; max: [number, number]; zoom: number; start: Date; end: Date }, signal?: AbortSignal) {
+  return get<import('../vehicles').Segment[]>('/api/v5/map/trips', {
+    zoom: Math.round(o.zoom * 10) / 10,
+    min: `${o.min[1]},${o.min[0]}`,
+    max: `${o.max[1]},${o.max[0]}`,
+    startTime: o.start.toISOString(),
+    endTime: o.end.toISOString(),
+    precision: 5,
+  }, signal)
+}

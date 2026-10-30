@@ -16,7 +16,7 @@
   }
   const diag = `${theme.standalone ? 'home-screen' : 'browser'} · view ${innerWidth}×${innerHeight} · screen ${screen.width}×${screen.height} · vv ${Math.round(window.visualViewport?.height ?? 0)} · safe ${probe('safe-area-inset-top')}/${probe('safe-area-inset-bottom')}`
 
-  const THEMES: [ThemeChoice, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
+  const THEMES: [ThemeChoice, string][] = [['system', 'System'], ['sun', 'Sun'], ['light', 'Light'], ['dark', 'Dark']]
 
   let clientId = $state(dbCreds()?.clientId ?? '')
   let apiKey = $state(dbCreds()?.apiKey ?? '')
@@ -59,7 +59,7 @@
 
   <section class="card box">
     <h2>Appearance</h2>
-    <div class="seg" role="radiogroup" aria-label="Theme">
+    <div class="seg" role="radiogroup" aria-label="Theme" title="Sun: light from sunrise, dark after dusk in Bonn">
       {#each THEMES as [value, label]}
         <button role="radio" aria-checked={theme.choice === value} onclick={() => setTheme(value)}>{label}</button>
       {/each}
@@ -118,7 +118,7 @@
   .row { display: flex; gap: 8px; }
   .version { text-align: center; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .diag { opacity: .6; font-size: 11px; }
-  .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; }
   .seg.two { grid-template-columns: 1fr 1fr; }
   .seg button { border: 0; background: none; padding: 9px; border-radius: 9px; font-weight: 600; color: var(--muted); }
   .seg button[aria-checked='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
