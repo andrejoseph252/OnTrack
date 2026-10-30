@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { app, go, loadLater, openTrip, persistFilters, resetSearch, search, type Filters, type TimeMode } from '../lib/state.svelte'
-  import { toLocalInput, hm } from '../lib/format'
+  import { app, go, loadLater, openTrip, persistFilters, resetSearch, search, type Annotated, type Filters, type TimeMode } from '../lib/state.svelte'
+  import { duration, hm, metres, toLocalInput } from '../lib/format'
   import PlaceInput from './PlaceInput.svelte'
   import ResultCard from './ResultCard.svelte'
   import TopNav from './TopNav.svelte'
@@ -50,6 +50,16 @@
     editing = false
     showHidden = false
   }
+
+  /**
+   * Where walking slots into the list by arrival time: before the first option that arrives
+   * later (0 = fastest of all, shown on top; -1 = every option is faster, shown last).
+   */
+  const walkAt = $derived.by(() => {
+    if (!app.walk) return -2
+    const arrive = new Date(app.walk.it.endTime).getTime()
+    return app.results.findIndex(a => new Date(a.it.endTime).getTime() > arrive)
+  })
 
   const activeFilters = $derived(FILTERS.filter(f => app.filters[f.key]).length)
 </script>
@@ -116,6 +126,18 @@
 
 {#if app.error}<div class="banner bad">{app.error}</div>{/if}
 
+{#snippet walkRow(w: Annotated, fastest: boolean)}
+  {@const dist = w.it.legs.reduce((m, l) => m + (l.distance ?? 0), 0)}
+  <button class="walkrow" class:fastest onclick={() => openTrip(w)}>
+    <svg class="wico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2" /><path d="m9 21 3-7 3 3v4M7 12l2-4 4-1 2 4 3 1M12 14l-1-4" /></svg>
+    <span class="wtxt">
+      <b>Walk · {duration(w.it.duration)}</b>
+      <small>{fastest ? 'Fastest · ' : ''}{dist ? `${metres(dist)} · ` : ''}arrive {hm(w.it.endTime)}</small>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+  </button>
+{/snippet}
+
 <section class="results">
   {#if app.results.length || app.loading}
     <div class="rhead">
@@ -127,6 +149,7 @@
     {#each [0, 1, 2] as i (i)}<div class="card skel"></div>{/each}
   {/if}
   {#each app.results as a, i (a.it.startTime + a.it.legs.map(l => l.tripId).join())}
+    {#if app.walk && i === walkAt}{@render walkRow(app.walk, i === 0)}{/if}
     <!-- Map preview on mouse hover only: on iOS a hover-triggered change eats the first tap. -->
     <div role="presentation" onpointerenter={e => { if (e.pointerType === 'mouse') app.preview = i }} onpointerleave={e => { if (e.pointerType === 'mouse') app.preview = null }}>
       <ResultCard {a} onopen={() => openTrip(a)} />
@@ -142,6 +165,7 @@
       {/each}
     {/if}
   {/if}
+  {#if app.walk && (walkAt === -1 || !app.results.length)}{@render walkRow(app.walk, !app.results.length)}{/if}
   {#if app.results.length && app.nextCursor}
     <button class="btn ghost later" disabled={app.loading} onclick={loadLater}>Later connections</button>
   {/if}
@@ -195,5 +219,18 @@
   @keyframes sh { to { background-position: -200% 0; } }
   .hiddenbtn { background: none; border: 1px dashed var(--surface-3); border-radius: 12px; padding: 11px; color: var(--muted); }
   .later { justify-self: center; }
+  .walkrow {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    border: 0; border-radius: 14px; padding: 10px 12px; background: var(--surface-2); color: var(--text);
+  }
+  .walkrow.fastest { background: var(--ok-soft); }
+  .walkrow:active { transform: scale(.99); }
+  .wico { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--text-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .walkrow.fastest .wico { stroke: var(--ok); }
+  .wtxt { flex: 1; min-width: 0; display: grid; }
+  .wtxt b { font-weight: 650; }
+  .wtxt small { color: var(--muted); font-size: 12.5px; }
+  .walkrow.fastest .wtxt small { color: var(--ok); }
+  .chev { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--muted); stroke-width: 2; }
   .addplaces { justify-self: start; }
 </style>

@@ -136,6 +136,8 @@ export const app = $state({
   results: [] as Annotated[],
   /** Connections relying on self-contradictory live data (ghost trips); shown only on request. */
   hidden: [] as Annotated[],
+  /** Walking the whole way (if under 45 min), shown as a slim row rather than a route card. */
+  walk: null as Annotated | null,
   nextCursor: undefined as string | undefined,
   lastQuery: null as PlanOptions | null,
   selected: null as Annotated | null,
@@ -205,6 +207,7 @@ export async function search() {
   app.error = ''
   app.results = []
   app.hidden = []
+  app.walk = null
   const gen = ++generation
   try {
     const from = app.from ?? (await currentPosition())
@@ -216,9 +219,10 @@ export async function search() {
       plan(q, ctrl.signal),
       plan({ ...q, realtimeMode: 'OFF' }, ctrl.signal).catch(() => null),
     ])
-    // A walk-only route (e.g. 600 m to uni) can beat any connection; show it too.
-    const all = [...r.itineraries, ...r.direct.filter(d => d.duration < 45 * 60)]
-    const annotated = all.map(i => annotate(i))
+    // A walk-only route (e.g. 600 m to uni) can beat any connection: kept separately as a slim row.
+    const walk = r.direct.filter(d => d.duration < 45 * 60 && d.legs.every(l => l.mode === 'WALK')).sort((a, b) => a.duration - b.duration)[0]
+    app.walk = walk ? annotate(walk) : null
+    const annotated = r.itineraries.map(i => annotate(i))
     const ok = annotated.filter(a => !a.confidence.broken.length)
     app.hidden = annotated.filter(a => a.confidence.broken.length)
     const extra = app.hidden.length && sched ? timetableFallback(r.itineraries, app.hidden, sched.itineraries) : []
@@ -227,7 +231,7 @@ export async function search() {
     crossCheckList(gen)
     app.nextCursor = r.nextPageCursor
     app.updatedAt = new Date()
-    if (!all.length) app.error = 'No connections found. Try a different time or turn off filters.'
+    if (!r.itineraries.length && !walk) app.error = 'No connections found. Try a different time or turn off filters.'
   } catch (e) {
     if ((e as Error).name !== 'AbortError') app.error = (e as Error).message
   } finally {
@@ -378,6 +382,7 @@ export function resetSearch() {
   app.to = null
   app.results = []
   app.hidden = []
+  app.walk = null
   app.error = ''
   app.loading = false
   app.nextCursor = undefined
