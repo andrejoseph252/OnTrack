@@ -74,6 +74,8 @@ export interface Annotated {
   risk: RiskLevel
   /** Timetabled connection offered because live data for one of its lines is broken. */
   fallback?: string[]
+  /** Built by swapping in another departure from leg `from` onward; refreshed by re-running `query`. */
+  custom?: { from: number; query: PlanOptions; key: string }
 }
 
 export function annotate(it: Itinerary, fallback?: string[]): Annotated {
@@ -134,7 +136,6 @@ export const app = $state({
   stop: null as StopRef | null,
   /** Stopping points at the open stop, with where they go: drawn on the map. */
   stopQuays: [] as { lat: number; lon: number; label: string; to: string[]; color: string }[],
-  backups: {} as Record<number, Annotated[] | 'loading' | 'none'>,
 })
 
 export function persistFilters() {
@@ -243,11 +244,9 @@ export async function loadLater() {
 export function openTrip(a: Annotated) {
   app.selected = a
   app.selectedStale = false
-  app.backups = {}
   app.tripFocus = null
   go('trip')
   crossCheckWithDb(a.it).then(() => { if (app.selected === a) app.selected = annotate(a.it, a.fallback) })
-  for (const t of a.transfers) if (t.level === 'risky' || t.level === 'missed') findBackup(t)
 }
 
 /** Re-query and find the same trips again, so delays and cancellations stay current. */
@@ -255,6 +254,7 @@ export async function refreshSelected() {
   const sel = app.selected
   const q = app.lastQuery
   if (!sel || !q) return
+  if (sel.custom) return refreshCustom(sel)
   const start = new Date(new Date(sel.it.startTime).getTime() - 2 * 60000)
   try {
     const r = await plan({ ...q, time: start, arriveBy: false, pageCursor: undefined, numItineraries: 8, realtimeMode: sel.fallback ? 'OFF' : 'REALTIME' })
@@ -296,23 +296,66 @@ async function crossCheckList(gen: number) {
   app.results = sortResults(re.filter(a => !a.confidence.broken.length))
 }
 
-/** Backup if a transfer fails: the next connections from the transfer stop after the planned departure. */
-export async function findBackup(t: Transfer) {
+/**
+ * Where you are before leg `i`: getting off the previous ride (or at the start), and when.
+ * Everything after that point is what "other departures" replaces.
+ */
+function anchorFor(it: Itinerary, i: number) {
+  const k = it.legs.slice(0, i).map((l, n) => (isTransit(l) ? n : -1)).filter(n => n >= 0).at(-1) ?? -1
+  if (k >= 0) return { keep: k + 1, place: it.legs[k].to, ready: checkLeg(it.legs[k]).arr.time }
+  return { keep: 0, place: it.legs[0].from, ready: new Date(Math.max(Date.now(), new Date(it.legs[0].startTime).getTime())) }
+}
+
+/**
+ * "Other departures": every way on to the destination from where you are before leg `i`
+ * (e.g. having got off the tram at Bonn Hbf), from the moment you're there. Planned from
+ * the position, so all platforms (trains, trams, buses) count, walks included.
+ */
+export async function departuresFrom(i: number): Promise<{ ready: Date; at: string; options: Annotated[]; query: PlanOptions; keep: number }> {
   const sel = app.selected
-  if (!app.to || !sel || app.backups[t.toIndex]) return
-  app.backups[t.toIndex] = 'loading'
-  const at = t.arriving.to
-  const missedDep = checkLeg(t.departing).dep.time
+  if (!sel || !app.to) throw new Error('No trip')
+  const { keep, place, ready } = anchorFor(sel.it, i)
+  const query = { ...options({ name: place.name, lat: place.lat, lon: place.lon }, app.to, new Date(ready.getTime() - 60000), false), numItineraries: 7 }
+  const r = await plan(query)
+  const firstRide = (x: Itinerary) => x.legs.find(isTransit)
+  const found = r.itineraries
+    .map(x => annotate(x))
+    .filter(a => !a.confidence.broken.length && firstRide(a.it) && checkLeg(firstRide(a.it)!).dep.time.getTime() >= ready.getTime() - 60000)
+    .sort((a, b) => checkLeg(firstRide(a.it)!).dep.time.getTime() - checkLeg(firstRide(b.it)!).dep.time.getTime())
+  return { ready, at: place.name, options: found, query, keep }
+}
+
+/** Keep the trip up to the anchor (`keep` legs), then continue with the chosen option. */
+export function useDeparture(keep: number, alt: Annotated, query: PlanOptions) {
+  const sel = app.selected
+  if (!sel) return
+  const it = joinTrip(sel.it.legs.slice(0, keep), alt.it)
+  app.selected = { ...annotate(it), custom: { from: keep, query, key: tripKey(alt.it) } }
+  app.selectedStale = false
+  app.tripFocus = null
+  crossCheckWithDb(it).then(() => { if (app.selected?.it === it) app.selected = { ...annotate(it), custom: app.selected.custom } })
+}
+
+function joinTrip(prefix: Itinerary['legs'], rest: Itinerary): Itinerary {
+  const legs = [...prefix, ...rest.legs]
+  const start = legs[0].startTime
+  return { ...rest, legs, startTime: start, duration: Math.round((new Date(rest.endTime).getTime() - new Date(start).getTime()) / 1000), transfers: Math.max(0, legs.filter(isTransit).length - 1) }
+}
+
+/** Refresh a swapped trip: re-run the continuation and find the same trips again. */
+async function refreshCustom(sel: Annotated) {
+  const c = sel.custom!
   try {
-    const r = await plan(options({ name: at.name, lat: at.lat, lon: at.lon, stopId: at.stopId }, app.to, new Date(missedDep.getTime() + 60000), false))
-    const alts = r.itineraries
-      .filter(i => i.legs.find(isTransit)?.tripId !== t.departing.tripId)
-      .map(i => annotate(i))
-      .filter(a => !a.confidence.broken.length && a.risk !== 'missed')
-      .slice(0, 2)
-    if (app.selected === sel) app.backups[t.toIndex] = alts.length ? alts : 'none'
+    const r = await plan(c.query)
+    const same = r.itineraries.find(x => tripKey(x) === c.key)
+    if (app.selected !== sel) return
+    if (!same) { app.selectedStale = true; return }
+    const it = joinTrip(sel.it.legs.slice(0, c.from), same)
+    await crossCheckWithDb(it)
+    if (app.selected === sel) app.selected = { ...annotate(it), custom: c }
+    app.updatedAt = new Date()
   } catch {
-    if (app.selected === sel) delete app.backups[t.toIndex]
+    /* keep last known data */
   }
 }
 

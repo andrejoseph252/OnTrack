@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte'
-  import { app, type Snap } from '../lib/state.svelte'
+  import { app, back, ROOT_VIEWS, type Snap } from '../lib/state.svelte'
+  import { theme } from '../lib/theme.svelte'
 
   let { children }: { children: Snippet } = $props()
 
@@ -8,6 +9,8 @@
   let wide = $state(window.innerWidth >= 900)
   let safeTop = $state(0)
   let dragH = $state<number | null>(null)
+  /** Horizontal offset while swiping back from the left edge. */
+  let edgeX = $state(0)
   let sheet: HTMLElement
   let scroller: HTMLDivElement
   let probe: HTMLDivElement
@@ -43,19 +46,31 @@
    */
   onMount(() => {
     measure()
-    let t: { x: number; y: number; h: number; mode: 'undecided' | 'sheet' | 'native'; lastY: number; lastT: number; v: number } | null = null
+    let t: { x: number; y: number; h: number; mode: 'undecided' | 'sheet' | 'native' | 'edge'; lastY: number; lastT: number; v: number } | null = null
 
     const start = (e: TouchEvent) => {
       if (wide || e.touches.length !== 1) return
       if ((e.target as HTMLElement).closest('input, textarea, select')) { t = null; return }
       const p = e.touches[0]
-      t = { x: p.clientX, y: p.clientY, h: heights[app.sheet], mode: 'undecided', lastY: p.clientY, lastT: e.timeStamp, v: 0 }
+      // Swipe from the left edge goes back. Safari has its own edge gesture (driving our history
+      // entries), so this is only needed in the home-screen app, where iOS has none.
+      const edge = theme.standalone && p.clientX < 24 && !ROOT_VIEWS.includes(app.view)
+      t = { x: p.clientX, y: p.clientY, h: heights[app.sheet], mode: edge ? 'edge' : 'undecided', lastY: p.clientY, lastT: e.timeStamp, v: 0 }
     }
 
     const move = (e: TouchEvent) => {
       if (!t) return
       const p = e.touches[0]
       const dx = p.clientX - t.x, dy = p.clientY - t.y
+      if (t.mode === 'edge') {
+        e.preventDefault()
+        const dt = Math.max(1, e.timeStamp - t.lastT)
+        t.v = (p.clientX - t.lastY) / dt
+        t.lastY = p.clientX
+        t.lastT = e.timeStamp
+        edgeX = Math.max(0, dx)
+        return
+      }
       if (t.mode === 'undecided') {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
         const fromHandle = (e.target as HTMLElement).closest('.grab')
@@ -75,6 +90,10 @@
     }
 
     const end = () => {
+      if (t?.mode === 'edge') {
+        if (edgeX > 90 || (edgeX > 30 && t.v > 0.5)) back()
+        edgeX = 0
+      }
       if (t?.mode === 'sheet' && dragH !== null) snapTo(dragH, t.v)
       dragH = null
       t = null
@@ -136,7 +155,8 @@
       <span></span>
     </div>
   {/if}
-  <div class="content" class:locked={!wide && app.sheet !== 'full'} bind:this={scroller}>
+  <div class="content" class:locked={!wide && app.sheet !== 'full'} class:swiping={edgeX > 0} bind:this={scroller}
+    style:transform={edgeX ? `translateX(${edgeX}px)` : null} style:opacity={edgeX ? Math.max(0.4, 1 - edgeX / 400) : null}>
     {@render children()}
   </div>
 </section>
@@ -156,6 +176,12 @@
     max-width: 640px; margin: 0 auto;
   }
   .sheet.dragging { transition: none; }
+  /* Extend the panel's surface below the screen edge: iOS (home indicator, Safari toolbar,
+     standalone viewport quirks) can leave a strip under position:fixed; bottom:0. */
+  .sheet:not(.wide)::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 200px;
+    background: var(--glass-solid); pointer-events: none;
+  }
   .grab { flex: none; height: 24px; display: grid; place-items: center; cursor: grab; touch-action: none; }
   .grab span { width: 40px; height: 5px; border-radius: 3px; background: var(--surface-3); }
   .content {
@@ -163,6 +189,8 @@
     padding: 2px 16px calc(28px + env(safe-area-inset-bottom));
     -webkit-overflow-scrolling: touch;
   }
+  .content { transition: transform .25s ease, opacity .25s ease; }
+  .content.swiping { transition: none; }
   /* Below full height the sheet moves instead of the content scrolling. */
   .content.locked { overflow-y: hidden; }
 

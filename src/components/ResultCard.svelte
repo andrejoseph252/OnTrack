@@ -42,18 +42,9 @@
   <div class="flags small">
     {#if a.it.transfers === 0 && !walkOnly}<span class="flag">Direct</span>{:else if !walkOnly}<span class="flag">{a.it.transfers} change{a.it.transfers > 1 ? 's' : ''}</span>{/if}
     {#if c.cancelled}<span class="flag bad">Cancelled leg</span>{/if}
-    {#if c.broken.length}<span class="flag bad">Live data contradicts itself</span>{/if}
-    {#if a.risk === 'missed'}<span class="flag bad">Connection likely not possible</span>
-    {:else if a.risk === 'risky'}<span class="flag bad">Risky transfer</span>
-    {:else if a.risk === 'tight'}<span class="flag warn">Tight transfer</span>{/if}
-    {#if a.fallback}
-      <span class="flag warn">Timetable only: live data for {a.fallback.join(', ')} is unreliable</span>
-    {:else if c.transitLegs}
-      {#if c.unverified}<span class="flag warn">{c.unverified} time{c.unverified > 1 ? 's' : ''} uncertain</span>
-      {:else if c.live === c.transitLegs}<span class="flag ok">All live</span>
-      {:else if c.live === 0}<span class="flag">Timetable only</span>
-      {:else}<span class="flag">{c.live}/{c.transitLegs} live</span>{/if}
-    {/if}
+    {#if c.broken.length}<span class="flag bad">Unreliable live data</span>{/if}
+    {#if a.risk === 'missed'}<span class="flag bad">Connection won't work</span>{/if}
+    {#if a.fallback}<span class="flag warn">Timetable only</span>{/if}
   </div>
 </button>
 
@@ -72,7 +63,6 @@
   .leave.soon { color: var(--warn); }
   .flags { display: flex; gap: 6px; flex-wrap: wrap; }
   .flag { padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
-  .flag.ok { background: var(--ok-soft); color: var(--ok); }
   .flag.warn { background: var(--warn-soft); color: var(--warn); }
   .flag.bad { background: var(--bad-soft); color: var(--bad); }
 </style>
