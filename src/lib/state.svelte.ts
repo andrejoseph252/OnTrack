@@ -107,6 +107,8 @@ export const app = $state({
   sheet: 'full' as Snap,
   /** Visible height of the sheet in px, so the map can keep routes out from under it. */
   sheetPx: 0,
+  /** Real app height in px (see Sheet.measure: iOS home-screen apps under-report it). */
+  vh: typeof window !== 'undefined' ? window.innerHeight : 800,
   /** Leg of the open trip to frame on the map. */
   tripFocus: null as number | null,
   /** Result card being previewed on the map (search view). */

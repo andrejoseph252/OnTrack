@@ -137,7 +137,7 @@
   function padding() {
     return wide
       ? { top: 60, bottom: 60, left: 470, right: 70 }
-      : { top: 70, bottom: Math.min(app.sheetPx, window.innerHeight * 0.6) + 24, left: 36, right: 56 }
+      : { top: 70, bottom: Math.min(app.sheetPx, app.vh * 0.6) + 24, left: 36, right: 56 }
   }
 
   /** Once the user pans, stop re-centring the idle map on Bonn. */
@@ -145,7 +145,7 @@
   /** Centre Bonn in the part of the screen the sheet leaves visible. */
   function centreHome(duration = 500) {
     if (!map || userMoved) return
-    const covered = wide ? 0 : Math.min(app.sheetPx, window.innerHeight * 0.6)
+    const covered = wide ? 0 : Math.min(app.sheetPx, app.vh * 0.6)
     map.easeTo({ center: BONN, zoom: 12.3, offset: wide ? [210, 0] : [0, -covered / 2], duration })
   }
 
@@ -252,7 +252,7 @@
 <div class="map" bind:this={el}></div>
 
 <style>
-  .map { position: fixed; inset: 0; }
+  .map { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h, 100vh); }
   :global(.maplibregl-ctrl-top-right) { top: env(safe-area-inset-top); }
   :global(.maplibregl-ctrl-group) { border-radius: 12px !important; box-shadow: var(--shadow) !important; overflow: hidden; }
   :global(.mk.start), :global(.mk.end) { width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 5px rgb(0 0 0 / 35%); }

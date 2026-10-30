@@ -5,7 +5,6 @@
 
   let { children }: { children: Snippet } = $props()
 
-  let vh = $state(window.innerHeight)
   let wide = $state(window.innerWidth >= 900)
   let safeTop = $state(0)
   let dragH = $state<number | null>(null)
@@ -16,17 +15,29 @@
   let probe: HTMLDivElement
 
   const PEEK = 118
-  const heights = $derived({ peek: PEEK, half: Math.round(vh * 0.5), full: vh - safeTop - 10 })
+  /** Map left visible above the panel at its top position (below the status bar). */
+  const TOP_GAP = 64
+  const vh = $derived(app.vh)
+  const heights = $derived({ peek: PEEK, half: Math.round(vh * 0.5), full: vh - safeTop - TOP_GAP })
   const height = $derived(dragH ?? heights[app.sheet])
 
   // Tell the map how much of the screen the sheet covers.
   $effect(() => { app.sheetPx = wide ? 0 : height })
 
+  /**
+   * Real app height. A home-screen app with a translucent status bar reports a viewport
+   * (innerHeight, 100%, bottom: 0) that is short by about the status bar, leaving a strip at
+   * the bottom. There, the screen size is the truth; everything is sized from this value.
+   */
   function measure() {
-    vh = window.innerHeight
+    const portrait = window.innerHeight >= window.innerWidth
+    const screenH = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width)
+    app.vh = theme.standalone ? Math.max(window.innerHeight, screenH) : window.innerHeight
+    document.documentElement.style.setProperty('--app-h', `${app.vh}px`)
     wide = window.innerWidth >= 900
     safeTop = probe?.offsetHeight ?? 0
   }
+  measure()
 
   function snapTo(h: number, v: number) {
     const order: Snap[] = ['peek', 'half', 'full']
@@ -136,7 +147,7 @@
   })
 </script>
 
-<svelte:window onresize={measure} />
+<svelte:window onresize={measure} onorientationchange={measure} />
 <div class="probe" bind:this={probe} aria-hidden="true"></div>
 
 <section
@@ -145,6 +156,7 @@
   class:dragging={dragH !== null}
   bind:this={sheet}
   style:height={wide ? null : `${heights.full}px`}
+  style:--sheet-h={wide ? null : `${heights.full}px`}
   style:transform={wide ? null : `translateY(${heights.full - height}px)`}
   aria-label="Panel"
 >
@@ -164,7 +176,8 @@
 <style>
   .probe { position: fixed; top: 0; left: 0; width: 0; height: env(safe-area-inset-top); pointer-events: none; visibility: hidden; }
   .sheet {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    /* Positioned from the top with the real app height, never bottom: 0 (see measure). */
+    position: fixed; left: 0; right: 0; top: calc(var(--app-h, 100vh) - var(--sheet-h, 0px)); z-index: 10;
     display: flex; flex-direction: column;
     background: var(--glass);
     -webkit-backdrop-filter: blur(24px) saturate(1.6);
@@ -195,7 +208,7 @@
   .content.locked { overflow-y: hidden; }
 
   .sheet.wide {
-    top: 12px; bottom: 12px; left: 12px; right: auto; width: 420px; margin: 0;
+    top: 12px !important; bottom: 12px; left: 12px; right: auto; width: 420px; margin: 0;
     border-radius: 22px; transform: none; box-shadow: var(--shadow);
   }
   .sheet.wide .content { padding-top: 16px; }

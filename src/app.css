@@ -94,7 +94,7 @@
 
 html, body {
   margin: 0;
-  height: 100%;
+  height: var(--app-h, 100%);
   overflow: hidden;
   /* Matches the panel, so iOS's home-indicator/toolbar strip under it shows no seam. */
   background: var(--glass-solid);
@@ -112,7 +112,7 @@ html, body {
 }
 input, textarea { -webkit-user-select: text; user-select: text; }
 
-#app { height: 100%; }
+#app { height: var(--app-h, 100%); }
 
 button { font: inherit; color: inherit; cursor: pointer; }
 input { font: inherit; color: inherit; }
