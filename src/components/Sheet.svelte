@@ -71,12 +71,11 @@
         app.sheet = 'full'
         requestAnimationFrame(() => requestAnimationFrame(() => (instant = false)))
       }
-      for (const ms of [0, 60, 300, 600]) setTimeout(settle, ms)
     }
     const onFocusOut = () => { for (const ms of [0, 300]) setTimeout(settle, ms) }
     sheet.addEventListener('focusin', onFocusIn)
     sheet.addEventListener('focusout', onFocusOut)
-    window.visualViewport?.addEventListener('resize', settle)
+
 
     let t: { x: number; y: number; h: number; mode: 'undecided' | 'sheet' | 'native' | 'edge'; lastY: number; lastT: number; v: number } | null = null
 
@@ -138,7 +137,6 @@
     return () => {
       sheet.removeEventListener('focusin', onFocusIn)
       sheet.removeEventListener('focusout', onFocusOut)
-      window.visualViewport?.removeEventListener('resize', settle)
       sheet.removeEventListener('touchstart', start)
       sheet.removeEventListener('touchmove', move)
       sheet.removeEventListener('touchend', end)

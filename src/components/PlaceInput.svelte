@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { noScrollFocus } from '../lib/focus'
   import { geocode } from '../lib/api/transitous'
   import type { GeocodeMatch } from '../lib/api/types'
   import { app, type Loc } from '../lib/state.svelte'
@@ -65,6 +66,7 @@
 <div class="wrap">
   <input
     type="search"
+    use:noScrollFocus
     {placeholder}
     value={open ? text : display}
     onfocus={() => { open = true; text = '' }}

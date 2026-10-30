@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { noScrollFocus } from '../lib/focus'
   import { app, go } from '../lib/state.svelte'
   import { isReplacement, lineColor, lineKey, lineText, loadNetwork, net, type Line } from '../lib/network.svelte'
   import TopNav from './TopNav.svelte'
@@ -40,7 +41,7 @@
 
 <div class="search">
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-  <input type="search" placeholder="Find a line, e.g. 606 or Venusberg" bind:value={q} />
+  <input type="search" use:noScrollFocus placeholder="Find a line, e.g. 606 or Venusberg" bind:value={q} />
 </div>
 
 <div class="filters" role="group" aria-label="Type">

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { noScrollFocus } from '../lib/focus'
   import { dbCreds, setDbCreds, testDbCreds } from '../lib/api/db'
   import { back } from '../lib/state.svelte'
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte'
@@ -69,8 +70,8 @@
       <a href="https://developers.deutschebahn.com" target="_blank" rel="noreferrer">DB API Marketplace</a> (subscribe it to "Timetables").
       They are stored only in this browser and sent only to DB.
     </p>
-    <label>Client ID<input bind:value={clientId} autocomplete="off" spellcheck="false" /></label>
-    <label>API key (client secret)<input bind:value={apiKey} type="password" autocomplete="off" spellcheck="false" /></label>
+    <label>Client ID<input use:noScrollFocus bind:value={clientId} autocomplete="off" spellcheck="false" /></label>
+    <label>API key (client secret)<input use:noScrollFocus bind:value={apiKey} type="password" autocomplete="off" spellcheck="false" /></label>
     <div class="row">
       <button class="btn" disabled={busy} onclick={saveAndTest}>{busy ? 'Testing…' : 'Save & test'}</button>
       {#if dbCreds()}<button class="btn ghost" onclick={clear}>Remove</button>{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { noScrollFocus } from '../lib/focus'
   import { app, persistPlaces, type Loc } from '../lib/state.svelte'
   import PlaceInput from './PlaceInput.svelte'
   import TopNav from './TopNav.svelte'
@@ -39,7 +40,7 @@
     <div class="icons">
       {#each ICONS as ic}<button class="chip" aria-pressed={icon === ic} onclick={() => (icon = ic)}>{ic}</button>{/each}
     </div>
-    <input class="name" placeholder="Name, e.g. Uni" bind:value={name} />
+    <input class="name" use:noScrollFocus placeholder="Name, e.g. Uni" bind:value={name} />
     <PlaceInput value={loc} placeholder="Search address or place" onpick={l => { loc = l; if (!name && l) name = l.name }} />
     <button class="btn" disabled={!loc || !name.trim()} onclick={add}>Save place</button>
   </div>
