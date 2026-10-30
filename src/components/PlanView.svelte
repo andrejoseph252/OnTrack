@@ -219,14 +219,16 @@
   @keyframes sh { to { background-position: -200% 0; } }
   .hiddenbtn { background: none; border: 1px dashed var(--surface-3); border-radius: 12px; padding: 11px; color: var(--muted); }
   .later { justify-self: center; }
+  /* Walking: a card with a green outline and icon; solid green fill when it's the fastest. */
   .walkrow {
     display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-    border: 0; border-radius: 14px; padding: 10px 12px; background: var(--surface-2); color: var(--text);
+    border: 0; border-radius: 14px; padding: 10px 12px; color: var(--text);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 45%, transparent), var(--shadow-sm);
   }
-  .walkrow.fastest { background: var(--ok-soft); }
+  .walkrow.fastest { background: var(--ok-soft); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 60%, transparent); }
   .walkrow:active { transform: scale(.99); }
-  .wico { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--text-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .walkrow.fastest .wico { stroke: var(--ok); }
+  .wico { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .wtxt { flex: 1; min-width: 0; display: grid; }
   .wtxt b { font-weight: 650; }
   .wtxt small { color: var(--muted); font-size: 12.5px; }
