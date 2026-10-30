@@ -2,7 +2,7 @@
   import { dbCreds, setDbCreds, testDbCreds } from '../lib/api/db'
   import { back } from '../lib/state.svelte'
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte'
-  import { prefs, setClock } from '../lib/prefs.svelte'
+  import { prefs, setClock, setMapStyle } from '../lib/prefs.svelte'
 
   const THEMES: [ThemeChoice, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
 
@@ -51,6 +51,10 @@
       {#each THEMES as [value, label]}
         <button role="radio" aria-checked={theme.choice === value} onclick={() => setTheme(value)}>{label}</button>
       {/each}
+    </div>
+    <div class="seg two" role="radiogroup" aria-label="Map style">
+      <button role="radio" aria-checked={prefs.mapStyle === 'detailed'} onclick={() => setMapStyle('detailed')}>Map: detailed</button>
+      <button role="radio" aria-checked={prefs.mapStyle === 'minimal'} onclick={() => setMapStyle('minimal')}>Map: minimal</button>
     </div>
     <div class="seg two" role="radiogroup" aria-label="Clock">
       <button role="radio" aria-checked={prefs.clock === '12'} onclick={() => setClock('12')}>12-hour · 3:45 PM</button>

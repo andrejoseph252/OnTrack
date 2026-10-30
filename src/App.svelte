@@ -2,6 +2,7 @@
   import { app } from './lib/state.svelte'
   import { loadNetwork } from './lib/network.svelte'
   import { theme } from './lib/theme.svelte'
+  import { prefs } from './lib/prefs.svelte'
   import Sheet from './components/Sheet.svelte'
   import PlanView from './components/PlanView.svelte'
   import TripView from './components/TripView.svelte'
@@ -21,7 +22,7 @@
   {#await mapView}
     <div class="map-placeholder"></div>
   {:then M}
-    {#key theme.dark}<M.default />{/key}
+    {#key `${theme.dark}:${prefs.mapStyle}`}<M.default />{/key}
   {/await}
 </div>
 <!-- The map runs under the status bar; this fade keeps the clock and battery readable. -->

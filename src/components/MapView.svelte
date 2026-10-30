@@ -6,6 +6,7 @@
   import { onDestroy, onMount } from 'svelte'
   import { app, go, openTrip, search } from '../lib/state.svelte'
   import { theme } from '../lib/theme.svelte'
+  import { prefs } from '../lib/prefs.svelte'
   import { decodePolyline, headingAlong, type LngLat } from '../lib/geo'
   import { isTransit } from '../lib/realtime'
   import { lineColors, lineName } from '../lib/lines'
@@ -20,9 +21,10 @@
   let ready = $state(false)
   let wide = $state(window.innerWidth >= 900)
 
-  // App.svelte remounts the map when the theme changes, so this is read once per map.
+  // App.svelte remounts the map when the theme or map style changes, so these are read once per map.
   const dark = theme.dark
-  const STYLE = `https://tiles.openfreemap.org/styles/${dark ? 'dark' : 'positron'}`
+  // OpenFreeMap styles (all vector, same tiles): liberty = colourful, fiord = blue-toned dark.
+  const STYLE = `https://tiles.openfreemap.org/styles/${prefs.mapStyle === 'detailed' ? (dark ? 'fiord' : 'liberty') : dark ? 'dark' : 'positron'}`
   const BONN: [number, number] = [7.0982, 50.7374]
 
   type RouteProps = { color: string; width: number; opacity: number; walk: boolean; dashed?: boolean; ri?: number; key?: string }
