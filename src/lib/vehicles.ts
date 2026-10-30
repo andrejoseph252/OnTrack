@@ -21,8 +21,12 @@ export interface Segment {
   to: { name: string }
 }
 
+export interface Pose { at: LngLat; bearing: number }
+
 export interface Vehicle {
   tripId: string
+  /** Articulated vehicles (trams): one pose per section, front first, following the track. */
+  sections?: Pose[]
   line: string
   mode: Mode
   color?: string
@@ -66,8 +70,33 @@ function along(p: Prepared, f: number): { at: LngLat; bearing: number } {
   return { at: [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k], bearing: bearing(a, b) }
 }
 
-/** Where every trip is at time `now`: moving along a segment, or waiting (≤ 2 min) at its next stop. */
-export function positions(byTrip: Map<string, Prepared[]>, now: number): Vehicle[] {
+/**
+ * Points `offsets` metres back along the track from distance `d` into segment `idx`, continuing
+ * into earlier segments of the trip (or straight back along the first bearing if the track runs
+ * out). Each pose faces the direction of travel at that point, so sections bend round curves.
+ */
+export function trail(list: Prepared[], idx: number, d: number, offsets: number[]): Pose[] {
+  return offsets.map(off => {
+    let i = idx, rem = d - off
+    while (rem < 0 && i > 0) { i--; rem += list[i].cum[list[i].cum.length - 1] }
+    const p = list[i]
+    const total = p.cum[p.cum.length - 1]
+    if (rem < 0) {
+      // Ran out of known track: extend straight back from the start.
+      const b = bearing(p.path[0], p.path[1])
+      const back = -rem
+      const rad = (b * Math.PI) / 180
+      const dLat = (-back * Math.cos(rad)) / 111320
+      const dLon = (-back * Math.sin(rad)) / (111320 * Math.cos((p.path[0][1] * Math.PI) / 180))
+      return { at: [p.path[0][0] + dLon, p.path[0][1] + dLat] as LngLat, bearing: b }
+    }
+    return along(p, total ? Math.min(rem, total) / total : 0)
+  })
+}
+
+/** Where every trip is at time `now`: moving along a segment, or waiting (≤ 2 min) at its next stop.
+ *  `sectionSpacing` (metres) adds articulated section poses for trams. */
+export function positions(byTrip: Map<string, Prepared[]>, now: number, sectionSpacing = 0): Vehicle[] {
   const out: Vehicle[] = []
   for (const [tripId, list] of byTrip) {
     let p = list.find(s => s.dep <= now && now < s.arr)
@@ -80,7 +109,11 @@ export function positions(byTrip: Map<string, Prepared[]>, now: number): Vehicle
       f = 0
     }
     const { at, bearing: b } = along(p, f)
-    out.push({ tripId, line: p.seg.trips[0].displayName ?? '', mode: p.seg.mode, color: p.seg.routeColor, at, bearing: b, live: p.live, next: p.seg.to.name })
+    const isTram = p.seg.mode === 'TRAM'
+    const sections = isTram && sectionSpacing > 0
+      ? trail(list, list.indexOf(p), Math.max(0, Math.min(1, f)) * p.cum[p.cum.length - 1], [0, sectionSpacing, 2 * sectionSpacing])
+      : undefined
+    out.push({ tripId, line: p.seg.trips[0].displayName ?? '', mode: p.seg.mode, color: p.seg.routeColor, at, bearing: b, live: p.live, next: p.seg.to.name, sections })
   }
   return out
 }

@@ -128,7 +128,8 @@
   {#each FILTERS as f (f.key)}
     {@const on = app.filters[f.key]}
     <button class="fchip" class:dt={f.key === 'dticket'} aria-pressed={on} title={f.hint} onclick={() => toggle(f.key)}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={on ? CHECK : f.icon} /></svg>
+      <!-- The Deutschlandticket chip keeps its ticket icon when on (it's on nearly always). -->
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={on && f.key !== 'dticket' ? CHECK : f.icon} /></svg>
       <span>{f.label}</span>
     </button>
   {/each}
@@ -225,9 +226,12 @@
   .fchip:active { transform: scale(.97); }
   .fchip[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
   .fchip[aria-pressed='true'] svg { opacity: 1; stroke-width: 2.6; }
-  /* Deutschlandticket: a touch of red (the ticket's colour) on the icon, and red tint when on. */
-  .fchip.dt svg { color: #e30613; opacity: 1; }
-  .fchip.dt[aria-pressed='true'] { background: color-mix(in srgb, #e30613 10%, var(--surface)); color: color-mix(in srgb, #e30613 80%, var(--text)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #e30613 50%, transparent); }
+  /* Deutschlandticket: usually on, so "on" is the quiet state: plain chip, red ticket icon,
+     faint red edge. Off: greyed icon and dimmed text. */
+  .fchip.dt { color: var(--muted); }
+  .fchip.dt svg { opacity: .45; }
+  .fchip.dt[aria-pressed='true'] { background: var(--surface); color: var(--text-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, #e30613 32%, var(--line)), var(--shadow-sm); }
+  .fchip.dt[aria-pressed='true'] svg { color: #e30613; opacity: 1; stroke-width: 2; }
 
   .results { display: grid; gap: 10px; margin-top: 14px; }
   .rhead { display: flex; align-items: baseline; justify-content: space-between; }

@@ -272,3 +272,29 @@ describe('vehicles (real Transitous segments, Bonn, 30 Oct 2026)', () => {
     expect(moved.length).toBeGreaterThan(5)
   })
 })
+
+import { trail } from '../src/lib/vehicles'
+
+describe('articulated tram sections', () => {
+  // An L-shaped track: 200 m north, then 200 m east (around 50.73 N, 7.10 E).
+  const lat0 = 50.73, lon0 = 7.1, mLat = 1 / 111320, mLon = 1 / (111320 * Math.cos((lat0 * Math.PI) / 180))
+  const seg = (path: [number, number][]) => {
+    const cum = [0]
+    for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot((path[i][0] - path[i - 1][0]) / mLon, (path[i][1] - path[i - 1][1]) / mLat))
+    return { seg: {} as never, path, cum, dep: 0, arr: 1, live: true }
+  }
+  const north = seg([[lon0, lat0], [lon0, lat0 + 200 * mLat]])
+  const east = seg([[lon0, lat0 + 200 * mLat], [lon0 + 200 * mLon, lat0 + 200 * mLat]])
+
+  it('bends round a corner: front faces east, rear still faces north', () => {
+    const [front, mid, rear] = trail([north, east], 1, 30, [0, 40, 80])
+    expect(front.bearing).toBeCloseTo(90, 0)
+    expect(mid.bearing).toBeCloseTo(0, 0)
+    expect(rear.bearing).toBeCloseTo(0, 0)
+    expect(rear.at[1]).toBeLessThan(mid.at[1])
+  })
+  it('extends straight back when the known track runs out', () => {
+    const [, , rear] = trail([north], 0, 10, [0, 40, 80])
+    expect(rear.at[1]).toBeLessThan(lat0)
+  })
+})
