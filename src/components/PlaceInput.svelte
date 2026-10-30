@@ -18,7 +18,10 @@
   let ctrl: AbortController | null = null
 
   const display = $derived(value ? value.name : allowCurrent ? 'Current location' : '')
-  const saved = $derived(app.places.filter(p => !text || p.name.toLowerCase().includes(text.toLowerCase())))
+  // Saved places only as matches for what's typed: unfiltered they'd repeat the chips below.
+  const saved = $derived(text.trim() ? app.places.filter(p => p.name.toLowerCase().includes(text.trim().toLowerCase())) : [])
+  // Only open once there's something to show: typing, or "Current location" for the start.
+  const showMenu = $derived(open && (allowCurrent || text.trim().length > 0) && (allowCurrent || saved.length > 0 || results.length > 0 || busy))
 
   function onInput() {
     clearTimeout(timer)
@@ -71,7 +74,7 @@
     enterkeyhint="search"
     class:current={!value && allowCurrent && !open}
   />
-  {#if open}
+  {#if showMenu}
     <ul class="menu card" role="listbox">
       {#if allowCurrent}
         <li><button onmousedown={() => pick(null)}><span class="ic">◎</span><span>Current location</span></button></li>
