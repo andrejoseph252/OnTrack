@@ -79,6 +79,12 @@
 {#if app.selectedStale}
   <div class="banner bad">This connection no longer shows in live data; it may be cancelled or changed. <button class="link" onclick={replanFromHere}>See what you can still catch</button></div>
 {/if}
+{#if a.notRunning}
+  <div class="banner bad"><b>The VRS timetable has no tram {a.notRunning.split(' → ')[0]} on this stretch today</b>: replacement buses ({a.notRunning.split(' → ')[1]}) run instead. This route comes from the regular timetable and may not work.</div>
+{/if}
+{#if a.replacement}
+  <div class="banner warn"><b>{a.replacement} replacement bus</b>, from the VRS timetable. It isn't in the live data, so times are as planned; the stop display has the latest.</div>
+{/if}
 {#if a.fallback}
   <div class="banner warn"><b>Timetable times only</b> for line {a.fallback.join(', ')}: its live data is unreliable right now. Check the display at the stop.</div>
 {/if}

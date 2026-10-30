@@ -298,3 +298,30 @@ describe('articulated tram sections', () => {
     expect(rear.at[1]).toBeLessThan(lat0)
   })
 })
+
+import { net, onReplacedStretch } from '../src/lib/network.svelte'
+
+describe('tram legs on a stretch replaced by buses (VRS timetable)', () => {
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date()).replace(/-/g, '')
+  // BE61 runs Stadthaus -> Chlodwigplatz -> Kopenhagener Str. (positions roughly as in Bonn).
+  const STADTHAUS = { lat: 50.7381, lon: 7.0954 }, CHLODWIG = { lat: 50.7435, lon: 7.0907 }, KOPENHAGENER = { lat: 50.7590, lon: 7.0700 }, HBF = { lat: 50.7320, lon: 7.0970 }
+  const setup = (days: string[]) => {
+    net.stops = [['s', 'Stadthaus', STADTHAUS.lat, STADTHAUS.lon], ['c', 'Chlodwigplatz', CHLODWIG.lat, CHLODWIG.lon], ['k', 'Kopenhagener Str.', KOPENHAGENER.lat, KOPENHAGENER.lon]]
+    net.lines = [{ id: 'be61', name: 'BE61', type: 'bus', color: null, text: 'FFFFFF', operator: 'Stadtwerke Bonn', desc: '', patterns: [{ dir: 0, headsign: 'Kopenhagener Str.', shape: '', stops: [0, 1, 2] }] }]
+    net.replacements = { '61': days }
+  }
+  const leg = (from: object, to: object, mid: object[] = []) => ({ mode: 'TRAM', routeShortName: '61', from, to, intermediateStops: mid }) as never
+
+  it('flags a 61 ride through Chlodwigplatz', () => {
+    setup([today])
+    expect(onReplacedStretch(leg(STADTHAUS, KOPENHAGENER, [CHLODWIG]))?.name).toBe('BE61')
+  })
+  it('does not flag a 61 ride that only reaches the stretch end (Hbf -> Stadthaus)', () => {
+    setup([today])
+    expect(onReplacedStretch(leg(HBF, STADTHAUS))).toBeUndefined()
+  })
+  it('flags nothing on days without replacement buses', () => {
+    setup(['20000101'])
+    expect(onReplacedStretch(leg(STADTHAUS, KOPENHAGENER, [CHLODWIG]))).toBeUndefined()
+  })
+})

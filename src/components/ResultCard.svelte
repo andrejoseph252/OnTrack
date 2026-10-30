@@ -18,7 +18,7 @@
   const walkOnly = $derived(!firstTransit)
 </script>
 
-<button class="card result" class:dim={a.risk === 'missed' || c.cancelled > 0 || c.broken.length > 0} onclick={onopen}>
+<button class="card result" class:dim={a.risk === 'missed' || c.cancelled > 0 || c.broken.length > 0 || !!a.notRunning} onclick={onopen}>
   <div class="row top">
     <div class="times">
       <TimeBadge t={dep} big /> <span class="muted">–</span> <TimeBadge t={arr} big />
@@ -45,6 +45,8 @@
     {#if c.broken.length}<span class="flag bad">Unreliable live data</span>{/if}
     {#if a.risk === 'missed'}<span class="flag bad">Connection won't work</span>{/if}
     {#if a.fallback}<span class="flag warn">Timetable only</span>{/if}
+    {#if a.replacement}<span class="flag warn">Replacement bus · timetable</span>{/if}
+    {#if a.notRunning}<span class="flag bad">Tram {a.notRunning.split(' → ')[0]} not running here today (VRS)</span>{/if}
   </div>
 </button>
 

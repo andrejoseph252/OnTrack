@@ -88,3 +88,13 @@ export function mapTrips(o: { min: [number, number]; max: [number, number]; zoom
     precision: 5,
   }, signal)
 }
+
+/** A walking route between two points (Transitous street routing), or null if none. */
+export async function walkRoute(from: { lat: number; lon: number }, to: { lat: number; lon: number }, signal?: AbortSignal) {
+  // transitModes must be sent empty (= no transit), which get() would drop; build the URL here.
+  const url = `${BASE}/api/v5/plan?fromPlace=${from.lat},${from.lon}&toPlace=${to.lat},${to.lon}&transitModes=&directModes=WALK&maxDirectTime=2700&language=de`
+  const res = await fetch(url, { signal })
+  if (!res.ok) return null
+  const r = (await res.json()) as PlanResponse
+  return r.direct?.[0]?.legs.find(l => l.mode === 'WALK') ?? null
+}

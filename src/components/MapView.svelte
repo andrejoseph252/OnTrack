@@ -46,7 +46,9 @@
   function itineraryRoutes(it: Itinerary, extra: Partial<RouteProps> = {}) {
     return it.legs.map((leg, i) => route(path(it, i), {
       color: isTransit(leg) ? lineColors(leg).bg : dark ? '#c9d1db' : '#3d4652',
-      width: isTransit(leg) ? 5 : 3.5, opacity: 1, walk: !isTransit(leg), ...extra,
+      width: isTransit(leg) ? 5 : 3.5, opacity: 1, walk: !isTransit(leg),
+      // Replacement buses (VRS timetable) follow stop-to-stop lines, so draw them dashed.
+      dashed: isTransit(leg) && !!leg.tripId?.startsWith('rep:'), ...extra,
     }))
   }
 

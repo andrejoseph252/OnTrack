@@ -51,3 +51,21 @@ export function headingAlong(path: LngLat[], metres = 60) {
 
 const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west']
 export const compass = (deg: number) => COMPASS[Math.round(deg / 45) % 8]
+
+/** Encode [lon, lat] pairs as a Google polyline (inverse of decodePolyline). */
+export function encodePolyline(points: LngLat[], precision = 6): string {
+  const f = 10 ** precision
+  let out = '', plat = 0, plon = 0
+  const enc = (v: number) => {
+    v = v < 0 ? ~(v << 1) : v << 1
+    let s = ''
+    while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5 }
+    return s + String.fromCharCode(v + 63)
+  }
+  for (const [lon, lat] of points) {
+    const la = Math.round(lat * f), lo = Math.round(lon * f)
+    out += enc(la - plat) + enc(lo - plon)
+    plat = la; plon = lo
+  }
+  return out
+}

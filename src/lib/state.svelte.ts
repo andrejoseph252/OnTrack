@@ -5,6 +5,8 @@ import { analyseTransfers, worstRisk, type RiskLevel, type Transfer } from './tr
 import { load, save } from './storage'
 import { checkRail, dbCreds, type DbCheck } from './api/db'
 import { isRail } from './lines'
+import { replacementItineraries } from './replacements'
+import { findLine, lineColor, loadNetwork, net, onReplacedStretch } from './network.svelte'
 
 export interface Loc {
   name: string
@@ -83,13 +85,21 @@ export interface Annotated {
   risk: RiskLevel
   /** Timetabled connection offered because live data for one of its lines is broken. */
   fallback?: string[]
+  /** A tram replacement bus ("BE61") from the VRS timetable, not in the national data Transitous uses. */
+  replacement?: string
+  /** Uses a tram stretch that the VRS timetable has replaced by buses today ("61 → BE61"). */
+  notRunning?: string
   /** Built by swapping in another departure from leg `from` onward; refreshed by re-running `query`. */
   custom?: { from: number; query: PlanOptions; key: string }
 }
 
 export function annotate(it: Itinerary, fallback?: string[]): Annotated {
   const transfers = analyseTransfers(it)
-  return { it, confidence: itineraryConfidence(it), transfers, risk: worstRisk(transfers), fallback }
+  const blocked = it.legs.filter(isTransit).map(l => [l, onReplacedStretch(l)] as const).find(([, r]) => r)
+  return {
+    it, confidence: itineraryConfidence(it), transfers, risk: worstRisk(transfers), fallback,
+    notRunning: blocked ? `${blocked[0].routeShortName} → ${blocked[1]!.name}` : undefined,
+  }
 }
 
 /**
@@ -190,9 +200,27 @@ function options(from: Loc, to: Loc, time: Date | undefined, arriveBy: boolean):
   }
 }
 
+/** Direct trips on tram replacement buses (VRS timetable), on days they run; never throws. */
+async function replacementOptions(from: Loc, to: Loc, time: Date | undefined, arriveBy: boolean): Promise<Annotated[]> {
+  try {
+    await loadNetwork()
+    if (!Object.keys(net.replacements).length) return []
+    const its = await replacementItineraries(from, to, {
+      time, arriveBy,
+      color: tram => { const l = findLine(tram, 'TRAM'); return l ? lineColor(l) : undefined },
+    })
+    const now = Date.now()
+    return its
+      .filter(it => arriveBy || time || new Date(it.startTime).getTime() >= now - 60000)
+      .map(it => ({ ...annotate(it), replacement: it.legs.find(isTransit)?.routeShortName }))
+  } catch {
+    return []
+  }
+}
+
 /** Order: feasible first, then by arrival (or by changes when "fewest changes" is on). */
 function sortResults(list: Annotated[]) {
-  const infeasible = (a: Annotated) => (a.risk === 'missed' || a.confidence.cancelled > 0 ? 1 : 0)
+  const infeasible = (a: Annotated) => (a.risk === 'missed' || a.confidence.cancelled > 0 || a.notRunning ? 1 : 0)
   return list.sort((a, b) =>
     infeasible(a) - infeasible(b) ||
     (app.filters.fewestChanges ? a.it.transfers - b.it.transfers : 0) ||
@@ -220,9 +248,11 @@ export async function search() {
     const q = options(from, app.to, time, app.timeMode === 'arrive')
     app.lastQuery = q
     // The timetable-only query runs alongside, so the fallback costs no extra wait.
-    const [r, sched] = await Promise.all([
+    const [r, sched, reps] = await Promise.all([
       plan(q, ctrl.signal),
       plan({ ...q, realtimeMode: 'OFF' }, ctrl.signal).catch(() => null),
+      replacementOptions(from, app.to, time, app.timeMode === 'arrive'),
+      loadNetwork(),
     ])
     // A walk-only route (e.g. 600 m to uni) can beat any connection: kept separately as a slim row.
     const walk = r.direct.filter(d => d.duration < 45 * 60 && d.legs.every(l => l.mode === 'WALK')).sort((a, b) => a.duration - b.duration)[0]
@@ -231,7 +261,10 @@ export async function search() {
     const ok = annotated.filter(a => !a.confidence.broken.length)
     app.hidden = annotated.filter(a => a.confidence.broken.length)
     const extra = app.hidden.length && sched ? timetableFallback(r.itineraries, app.hidden, sched.itineraries) : []
-    app.results = sortResults([...ok, ...extra])
+    // Replacement-bus trips from the VRS timetable, unless Transitous already has that departure.
+    const known = new Set(r.itineraries.flatMap(i => i.legs.filter(isTransit).map(l => `${l.routeShortName}|${(l.from.scheduledDeparture ?? '').slice(0, 16)}`)))
+    const repl = reps.filter(a => !a.it.legs.some(l => isTransit(l) && known.has(`${l.routeShortName}|${(l.from.scheduledDeparture ?? '').slice(0, 16)}`)))
+    app.results = sortResults([...ok, ...extra, ...repl])
     // Then check every train in the list with DB and re-rank on DB's times.
     crossCheckList(gen)
     app.nextCursor = r.nextPageCursor
@@ -275,6 +308,8 @@ export async function refreshSelected() {
   const q = app.lastQuery
   if (!sel || !q) return
   if (sel.custom) return refreshCustom(sel)
+  // Timetable-only replacement trips have no live data to refresh.
+  if (sel.replacement) return
   const start = new Date(new Date(sel.it.startTime).getTime() - 2 * 60000)
   try {
     const r = await plan({ ...q, time: start, arriveBy: false, pageCursor: undefined, numItineraries: 8, realtimeMode: sel.fallback ? 'OFF' : 'REALTIME' })

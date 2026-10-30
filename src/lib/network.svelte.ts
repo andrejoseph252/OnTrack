@@ -91,3 +91,24 @@ export function replacementSpan(l: Line) {
   const p = l.patterns
   return p.length > 1 ? `${p[1].headsign} ↔ ${p[0].headsign}` : p[0]?.headsign ?? ''
 }
+
+/**
+ * A tram leg that uses the stretch its replacement bus covers today, per the VRS timetable
+ * (e.g. tram 61 through Chlodwigplatz while BE61 runs Stadthaus ↔ Kopenhagener Str.). Matched by
+ * position (≤ 120 m) against the replacement line's stops, ignoring its two end stops, where the
+ * tram still connects. Returns the replacement line, or undefined.
+ */
+export function onReplacedStretch(leg: { mode: string; routeShortName?: string; displayName?: string; from: { lat: number; lon: number }; to: { lat: number; lon: number }; intermediateStops?: { lat: number; lon: number }[] }): Line | undefined {
+  if (leg.mode !== 'TRAM') return undefined
+  const rep = replacedToday(leg.routeShortName || leg.displayName)
+  if (!rep) return undefined
+  const inner: [number, number][] = []
+  for (const p of rep.patterns) p.stops.slice(1, -1).forEach(si => { const s = net.stops[si]; if (s) inner.push([s[3], s[2]]) })
+  const legStops = [leg.from, ...(leg.intermediateStops ?? []), leg.to]
+  return legStops.some(ls => inner.some(([lon, lat]) => metresBetween(lat, lon, ls.lat, ls.lon) <= 120)) ? rep : undefined
+}
+
+function metresBetween(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const k = Math.PI / 180, x = (lon2 - lon1) * k * Math.cos(((lat1 + lat2) / 2) * k), y = (lat2 - lat1) * k
+  return Math.hypot(x, y) * 6371000
+}
