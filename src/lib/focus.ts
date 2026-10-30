@@ -31,3 +31,51 @@ export function noScrollFocus(input: HTMLInputElement) {
     },
   }
 }
+
+/**
+ * Svelte action for suggestion buttons: select on finger-lift (or mouse-down).
+ *
+ * Waiting for `click`/`mousedown` on iOS means acting after the keyboard has begun closing: the
+ * field blurs, the list closes and the layout shifts, so the tap is lost or lands elsewhere.
+ * Taps are recognised on pointerup if the finger moved less than 10 px (scrolls are ignored).
+ */
+export function tapSelect(button: HTMLElement, onSelect: () => void) {
+  let handler = onSelect
+  let down: { x: number; y: number } | null = null
+  /** Set when a tap was handled, so the touchend can cancel iOS's follow-up (ghost) click. */
+  let handled = false
+  const onDown = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse') { e.preventDefault(); handler(); return } // keep focus; act at once
+    down = { x: e.clientX, y: e.clientY }
+  }
+  const onUp = (e: PointerEvent) => {
+    if (!down || e.pointerType === 'mouse') return
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10
+    down = null
+    if (moved) return
+    e.preventDefault()
+    handled = true
+    handler()
+  }
+  // The list closes on select; without this, iOS's synthesized click lands on whatever is now
+  // under the finger.
+  const onTouchEnd = (e: TouchEvent) => { if (handled) { e.preventDefault(); handled = false } }
+  const onCancel = () => (down = null)
+  // Keyboard users (Enter/Space) get a click with detail 0.
+  const onClick = (e: MouseEvent) => { if (e.detail === 0) handler() }
+  button.addEventListener('pointerdown', onDown)
+  button.addEventListener('pointerup', onUp)
+  button.addEventListener('pointercancel', onCancel)
+  button.addEventListener('touchend', onTouchEnd, { passive: false })
+  button.addEventListener('click', onClick)
+  return {
+    update(fn: () => void) { handler = fn },
+    destroy() {
+      button.removeEventListener('pointerdown', onDown)
+      button.removeEventListener('pointerup', onUp)
+      button.removeEventListener('pointercancel', onCancel)
+      button.removeEventListener('touchend', onTouchEnd)
+      button.removeEventListener('click', onClick)
+    },
+  }
+}

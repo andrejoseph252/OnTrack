@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { noScrollFocus } from '../lib/focus'
+  import { noScrollFocus, tapSelect } from '../lib/focus'
   import { geocode } from '../lib/api/transitous'
   import type { GeocodeMatch } from '../lib/api/types'
   import { app, type Loc } from '../lib/state.svelte'
@@ -35,7 +35,8 @@
         // The geocoder can return the same address twice (e.g. two OSM objects); show it once.
         const seen = new Set<string>()
         results = (await geocode(text.trim(), ctrl.signal))
-          .filter(m => { const k = `${m.type === 'STOP' ? 'S' : 'P'}|${m.name}|${area(m)}`; const dup = seen.has(m.id) || seen.has(k); seen.add(m.id); seen.add(k); return !dup })
+          // Dedupe on what's shown: addresses come back with an empty id, so ids can't be used.
+          .filter(m => { const k = `${m.type === 'STOP' ? 'S' : 'P'}|${m.name}|${area(m)}`; const dup = seen.has(k); seen.add(k); return !dup })
           .slice(0, 8)
       }
       catch { /* aborted or offline */ }
@@ -70,7 +71,7 @@
     {placeholder}
     value={open ? text : display}
     onfocus={() => { open = true; text = '' }}
-    onblur={() => setTimeout(() => (open = false), 150)}
+    onblur={() => setTimeout(() => (open = false), 250)}
     oninput={e => { text = e.currentTarget.value; onInput() }}
     autocomplete="off"
     enterkeyhint="search"
@@ -79,14 +80,14 @@
   {#if showMenu}
     <ul class="menu card" role="listbox">
       {#if allowCurrent}
-        <li><button onmousedown={() => pick(null)}><span class="ic">◎</span><span>Current location</span></button></li>
+        <li><button use:tapSelect={() => pick(null)}><span class="ic">◎</span><span>Current location</span></button></li>
       {/if}
       {#each saved as p (p.id)}
-        <li><button onmousedown={() => pick(p)}><span class="ic">{p.icon}</span><span>{p.name}<small class="muted">Saved</small></span></button></li>
+        <li><button use:tapSelect={() => pick(p)}><span class="ic">{p.icon}</span><span>{p.name}<small class="muted">Saved</small></span></button></li>
       {/each}
-      {#each results as m (m.id)}
+      {#each results as m, i (`${m.id}|${m.name}|${i}`)}
         <li>
-          <button onmousedown={() => pick(fromMatch(m))}>
+          <button use:tapSelect={() => pick(fromMatch(m))}>
             <span class="ic">{icon(m)}</span>
             <span>{m.name}<small class="muted">{area(m)}</small></span>
           </button>
