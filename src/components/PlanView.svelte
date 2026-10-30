@@ -1,9 +1,10 @@
 <script lang="ts">
   import { app, go, loadLater, openTrip, persistFilters, resetSearch, search, type Annotated, type Filters, type TimeMode } from '../lib/state.svelte'
-  import { duration, hm, metres, toLocalInput } from '../lib/format'
+  import { hm, toLocalInput } from '../lib/format'
   import PlaceInput from './PlaceInput.svelte'
   import ResultCard from './ResultCard.svelte'
   import TopNav from './TopNav.svelte'
+  import WalkRow from './WalkRow.svelte'
 
   const FILTERS: { key: keyof Filters; label: string; hint: string }[] = [
     { key: 'dticket', label: 'Deutschlandticket', hint: 'No ICE, IC, EC, FlixTrain or coaches' },
@@ -127,15 +128,7 @@
 {#if app.error}<div class="banner bad">{app.error}</div>{/if}
 
 {#snippet walkRow(w: Annotated, fastest: boolean)}
-  {@const dist = w.it.legs.reduce((m, l) => m + (l.distance ?? 0), 0)}
-  <button class="walkrow" class:fastest onclick={() => openTrip(w)}>
-    <svg class="wico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="13" cy="4" r="2" /><path d="m9 21 3-7 3 3v4M7 12l2-4 4-1 2 4 3 1M12 14l-1-4" /></svg>
-    <span class="wtxt">
-      <b>Walk · {duration(w.it.duration)}</b>
-      <small>{fastest ? 'Fastest · ' : ''}{dist ? `${metres(dist)} · ` : ''}arrive {hm(w.it.endTime)}</small>
-    </span>
-    <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-  </button>
+  <WalkRow seconds={w.it.duration} metresTotal={w.it.legs.reduce((m, l) => m + (l.distance ?? 0), 0)} arrive={w.it.endTime} {fastest} onclick={() => openTrip(w)} />
 {/snippet}
 
 <section class="results">
@@ -219,20 +212,5 @@
   @keyframes sh { to { background-position: -200% 0; } }
   .hiddenbtn { background: none; border: 1px dashed var(--surface-3); border-radius: 12px; padding: 11px; color: var(--muted); }
   .later { justify-self: center; }
-  /* Walking: a card with a green outline and icon; solid green fill when it's the fastest. */
-  .walkrow {
-    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-    border: 0; border-radius: 14px; padding: 10px 12px; color: var(--text);
-    background: var(--surface);
-    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 45%, transparent), var(--shadow-sm);
-  }
-  .walkrow.fastest { background: var(--ok-soft); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 60%, transparent); }
-  .walkrow:active { transform: scale(.99); }
-  .wico { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .wtxt { flex: 1; min-width: 0; display: grid; }
-  .wtxt b { font-weight: 650; }
-  .wtxt small { color: var(--muted); font-size: 12.5px; }
-  .walkrow.fastest .wtxt small { color: var(--ok); }
-  .chev { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--muted); stroke-width: 2; }
   .addplaces { justify-self: start; }
 </style>

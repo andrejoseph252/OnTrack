@@ -3,7 +3,8 @@
   import { dbCreds, setDbCreds, testDbCreds } from '../lib/api/db'
   import { back } from '../lib/state.svelte'
   import { setTheme, theme, type ThemeChoice } from '../lib/theme.svelte'
-  import { prefs, setClock, setMapStyle } from '../lib/prefs.svelte'
+  import { prefs, setClock, setMapStyle, setWalkStyle, type WalkStyle } from '../lib/prefs.svelte'
+  import WalkRow from './WalkRow.svelte'
 
   // What iOS reports, for layout debugging (home-screen vs Safari, viewport vs screen).
   const probe = (prop: string) => {
@@ -74,6 +75,21 @@
     </div>
   </section>
 
+  <!-- Temporary: comparing walking-row looks. Tap one to use it in results. -->
+  <section class="card box">
+    <h2>Walking row style <span class="muted small">(trying out)</span></h2>
+    {#each [['a', 'A · Tint'], ['b', 'B · Accent bar'], ['c', 'C · Icon badge'], ['d', 'D · Path']] as [v, label] (v)}
+      <div class="wopt" class:chosen={prefs.walkStyle === v}>
+        <div class="wlabel small">{label}{prefs.walkStyle === v ? ' · in use' : ''}</div>
+        <WalkRow variant={v as WalkStyle} seconds={22 * 60} metresTotal={1600} arrive={new Date(Date.now() + 22 * 60000)} fastest={false} onclick={() => setWalkStyle(v as WalkStyle)} />
+      </div>
+    {/each}
+    <div class="wopt">
+      <div class="wlabel small">When it's the fastest (in the chosen style)</div>
+      <WalkRow seconds={12 * 60} metresTotal={900} arrive={new Date(Date.now() + 12 * 60000)} fastest={true} onclick={() => {}} />
+    </div>
+  </section>
+
   <section class="card box">
     <h2>DB train data</h2>
     <p class="small muted">
@@ -118,6 +134,10 @@
   .row { display: flex; gap: 8px; }
   .version { text-align: center; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .diag { opacity: .6; font-size: 11px; }
+  /* Previews sit on the panel colour, as in the results list. */
+  .wopt { background: var(--glass-solid); border-radius: 14px; padding: 8px; }
+  .wopt.chosen { box-shadow: inset 0 0 0 2px var(--accent); }
+  .wlabel { color: var(--muted); font-weight: 600; margin: 0 2px 6px; }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 12px; padding: 3px; }
   .seg.two { grid-template-columns: 1fr 1fr; }
   .seg button { border: 0; background: none; padding: 9px; border-radius: 9px; font-weight: 600; color: var(--muted); }
