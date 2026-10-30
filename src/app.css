@@ -94,8 +94,8 @@
 
 html, body {
   margin: 0;
-  /* The page itself never scrolls (iOS would scroll it when the keyboard opens, then snap
-     back: a bounce). Map and panel are fixed and sized from --app-h on their own. */
+  /* Page = viewport height, so there is nothing to scroll; map and panel are fixed and size
+     themselves from --app-h (the real screen height). Field focus bounce: see lib/focus.ts. */
   height: 100%;
   overflow: hidden;
   /* Matches the panel, so iOS's home-indicator/toolbar strip under it shows no seam. */
@@ -114,7 +114,8 @@ html, body {
 }
 input, textarea { -webkit-user-select: text; user-select: text; }
 
-body { position: fixed; inset: 0; }
+/* No position: fixed on body: WebKit clips fixed descendants (map, panel) to a fixed
+   ancestor's box, which is iOS's short viewport in the home-screen app: the bottom strip. */
 #app { height: 100%; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
