@@ -1,0 +1,31 @@
+name: Refresh VRS stop data
+
+# VRS updates its GTFS nightly; signposted quay names change rarely, so weekly is enough.
+on:
+  schedule:
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download VRS GTFS
+        run: |
+          mkdir -p "$RUNNER_TEMP/vrs"
+          curl -sSfL -o "$RUNNER_TEMP/vrs/gtfs.zip" https://download.vrs.de/gtfs/google_transit_goR.zip
+          unzip -o -q "$RUNNER_TEMP/vrs/gtfs.zip" stops.txt -d "$RUNNER_TEMP/vrs"
+      - run: node scripts/vrs-quays.mjs "$RUNNER_TEMP/vrs/stops.txt"
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add public/data/vrs-quays.json
+          git diff --cached --quiet || git commit -m "Refresh VRS quay data" && git push

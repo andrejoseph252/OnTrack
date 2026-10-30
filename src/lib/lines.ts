@@ -1,4 +1,5 @@
 import type { Leg, Mode } from './api/types'
+import { vrsQuay } from './quays.svelte'
 
 const MODE_COLOR: Partial<Record<Mode, string>> = {
   BUS: '#a5027d', TRAM: '#d10a11', SUBWAY: '#0a5ca8', METRO: '#0a5ca8', SUBURBAN: '#008d4f',
@@ -44,12 +45,19 @@ export function plausibleTrack(track: string | undefined) {
  * Seen at Bonn Hbf: every departure (IC, RE, RB, even the underground tram)
  * carries track "78" and description "Bahnsteig Gleis 1", a placeholder.
  */
-export function platformLabel(p: { track?: string; description?: string }, mode: Mode) {
-  if (isRail(mode)) return plausibleTrack(p.track) ? `Platform ${p.track!.trim()}` : ''
+export function platformLabel(p: { stopId?: string; track?: string; description?: string }, mode: Mode) {
+  const vrs = vrsQuay(p.stopId)
+  if (isRail(mode)) {
+    // A live track change wins; otherwise the VRS sign name, otherwise a plausible feed track.
+    if (plausibleTrack(p.track)) return `Platform ${p.track!.trim()}`
+    return vrs && /^gleis/i.test(vrs) ? vrs.replace(/^gleis/i, 'Platform') : ''
+  }
+  if (vrs) return vrs
   if (p.description && !/gleis/i.test(p.description)) return p.description
   return ''
 }
 
-export function quayRef(p: { track?: string }, mode: Mode) {
-  return !isRail(mode) && p.track ? `stop point ${p.track}` : ''
+/** The feed's internal quay number, shown small only when no sign name is known. */
+export function quayRef(p: { stopId?: string; track?: string }, mode: Mode) {
+  return !isRail(mode) && p.track && !vrsQuay(p.stopId) ? `stop point ${p.track}` : ''
 }

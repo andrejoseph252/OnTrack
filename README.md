@@ -21,6 +21,7 @@ Settings → Pages → Source: **GitHub Actions**.
 | Door-to-door routing, walking paths, stop positions | Transitous (MOTIS 2) `/api/v5/plan`: DELFI timetables + OpenStreetMap |
 | Live departures | Transitous `/api/v5/stoptimes` (nationwide GTFS-RT) |
 | DB cross-check (optional) | Any db-rest server (`src/lib/api/db.ts`), used only on exact match |
+| Signposted quay names ("Gleis U3a", "Bussteig E") | VRS static GTFS → `public/data/vrs-quays.json`, refreshed weekly by `.github/workflows/vrs-data.yml` |
 | Map | MapLibre + OpenFreeMap tiles |
 
 ### Accuracy rules (`src/lib/realtime.ts`, `src/lib/transfer.ts`, `src/lib/lines.ts`)

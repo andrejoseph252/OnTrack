@@ -127,7 +127,7 @@
     </section>
 
     <footer class="small muted">
-      Routing &amp; live data: <a href="https://transitous.org" target="_blank" rel="noreferrer">Transitous</a> (DELFI, OpenStreetMap). DB cross-check when available. Map © OpenFreeMap, OpenStreetMap.
+      Routing &amp; live data: <a href="https://transitous.org" target="_blank" rel="noreferrer">Transitous</a> (DELFI, OpenStreetMap). Stop and platform names: Datenquelle VRS, ohne Gewähr. DB cross-check when available. Map © OpenFreeMap, OpenStreetMap.
     </footer>
   </main>
 {/if}
