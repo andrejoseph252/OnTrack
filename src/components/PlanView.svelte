@@ -143,7 +143,7 @@
 </section>
 
 <footer class="small muted">
-  Routing &amp; live data: <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous and its data sources</a> (DELFI, © OpenStreetMap contributors). Stop names and line maps: Datenquelle VRS, ohne Gewähr. Train data: DB Timetables API. Map © OpenFreeMap.
+  Routing &amp; live data: <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous and its data sources</a> (DELFI, © OpenStreetMap contributors). Stop names and line maps: Datenquelle VRS, ohne Gewähr. Train data: DB Timetables API. Map © OpenFreeMap. <a href="https://github.com/andrejoseph252/OnTrack" target="_blank" rel="noreferrer">Source code &amp; contact</a>.
 </footer>
 
 <style>
