@@ -6,12 +6,18 @@
   import TopNav from './TopNav.svelte'
   import WalkRow from './WalkRow.svelte'
 
-  const FILTERS: { key: keyof Filters; label: string; hint: string }[] = [
-    { key: 'dticket', label: 'Deutschlandticket', hint: 'No ICE, IC, EC, FlixTrain or coaches' },
-    { key: 'fewestChanges', label: 'Fewest changes', hint: 'Prefer routes with fewer transfers' },
-    { key: 'stepFree', label: 'Step-free', hint: 'Walking paths without stairs' },
-    { key: 'buffer', label: '+2 min buffer', hint: 'Extra time at every transfer' },
+  // Icons are simple 24px stroke paths (generic glyphs, not the official D-Ticket logo).
+  const FILTERS: { key: keyof Filters; label: string; hint: string; icon: string }[] = [
+    { key: 'dticket', label: 'Deutschlandticket', hint: 'No ICE, IC, EC, FlixTrain or coaches',
+      icon: 'M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 6v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-6V7Zm6-2v14' },
+    { key: 'fewestChanges', label: 'Fewest changes', hint: 'Prefer routes with fewer transfers',
+      icon: 'M4 12h16m0 0-4-4m4 4-4 4' },
+    { key: 'stepFree', label: 'Step-free', hint: 'Walking paths without stairs',
+      icon: 'M10 4.5a1.5 1.5 0 1 0 0-.01M9 8v6h6l2 5M9 11h5M7.5 13.5a4.5 4.5 0 1 0 7 4' },
+    { key: 'buffer', label: '+2 min', hint: 'Extra time at every transfer',
+      icon: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' },
   ]
+  const CHECK = 'm5 12.5 4.5 4.5L19 7.5'
 
   let showHidden = $state(false)
   /** With results showing, the planner folds into a one-line summary so results fit at half height. */
@@ -119,8 +125,12 @@
 </div>
 
 <div class="scroll filters">
-  {#each FILTERS as f}
-    <button class="chip" aria-pressed={app.filters[f.key]} title={f.hint} onclick={() => toggle(f.key)}>{f.label}</button>
+  {#each FILTERS as f (f.key)}
+    {@const on = app.filters[f.key]}
+    <button class="fchip" class:dt={f.key === 'dticket'} aria-pressed={on} title={f.hint} onclick={() => toggle(f.key)}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={on ? CHECK : f.icon} /></svg>
+      <span>{f.label}</span>
+    </button>
   {/each}
 </div>
 {/if}
@@ -204,6 +214,20 @@
   .seg button[aria-pressed='true'] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
   .dt { border: 0; background: var(--surface-2); border-radius: 11px; padding: 7px 10px; }
   .filters { margin-top: 10px; }
+  .fchip {
+    display: inline-flex; align-items: center; gap: 7px; flex: none;
+    padding: 7px 13px 7px 10px; border-radius: 999px; white-space: nowrap;
+    font-size: 14px; font-weight: 600; color: var(--text-2);
+    background: var(--surface); border: 0; box-shadow: inset 0 0 0 1px var(--line), var(--shadow-sm);
+    transition: background .18s, color .18s, box-shadow .18s;
+  }
+  .fchip svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+  .fchip:active { transform: scale(.97); }
+  .fchip[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .fchip[aria-pressed='true'] svg { opacity: 1; stroke-width: 2.6; }
+  /* Deutschlandticket: a touch of red (the ticket's colour) on the icon, and red tint when on. */
+  .fchip.dt svg { color: #e30613; opacity: 1; }
+  .fchip.dt[aria-pressed='true'] { background: color-mix(in srgb, #e30613 10%, var(--surface)); color: color-mix(in srgb, #e30613 80%, var(--text)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #e30613 50%, transparent); }
 
   .results { display: grid; gap: 10px; margin-top: 14px; }
   .rhead { display: flex; align-items: baseline; justify-content: space-between; }
